@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -51,7 +52,7 @@ func main() {
 
 	case "hook":
 		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "Usage: prism hook <idle|busy>")
+			fmt.Fprintln(os.Stderr, "Usage: prism hook <idle|busy|session-start|session-end|pre-compact|setup>")
 			os.Exit(1)
 		}
 		handleHook(os.Args[2])
@@ -212,6 +213,12 @@ func handleUpdate(autoMode bool) {
 		os.Exit(1)
 	}
 
+	// Migrate settings.json to add any new hooks
+	hooksAdded, err := update.MigrateSettings()
+	if err != nil && !autoMode {
+		fmt.Fprintf(os.Stderr, "Warning: failed to migrate settings: %v\n", err)
+	}
+
 	// Clear the update cache so indicator disappears
 	cacheFile := filepath.Join(os.TempDir(), "prism-update-check")
 	os.Remove(cacheFile)
@@ -226,6 +233,9 @@ func handleUpdate(autoMode bool) {
 		os.WriteFile(markerFile, []byte(info.LatestVersion), 0644)
 	} else {
 		fmt.Printf("\nUpdated to %s!\n", info.LatestVersion)
+		if hooksAdded > 0 {
+			fmt.Printf("Added %d new hook(s) to settings.json\n", hooksAdded)
+		}
 	}
 }
 
@@ -270,40 +280,47 @@ func handleInitGlobal() {
 }
 
 func handleHook(hookType string) {
-	// Read JSON from stdin (Claude Code provides session info)
+	// Read raw JSON from stdin (Claude Code provides session info)
+	rawInput, _ := io.ReadAll(os.Stdin)
+
 	var input hooks.Input
-	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {
-		// Silent fail for hooks - don't break Claude Code
-		// Try to continue without session ID
-		input = hooks.Input{}
+	if len(rawInput) > 0 {
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			// Silent fail for hooks - don't break Claude Code
+			input = hooks.Input{}
+		}
 	}
 
 	manager := hooks.NewManager()
 
 	switch hookType {
 	case "idle":
-		if err := manager.HandleIdle(input); err != nil {
+		if err := manager.HandleIdle(input, rawInput); err != nil {
 			os.Exit(1)
 		}
 	case "busy":
-		if err := manager.HandleBusy(input); err != nil {
+		if err := manager.HandleBusy(input, rawInput); err != nil {
 			os.Exit(1)
 		}
 	case "session-start":
-		if err := manager.HandleSessionStart(input); err != nil {
+		if err := manager.HandleSessionStart(input, rawInput); err != nil {
 			os.Exit(1)
 		}
 	case "session-end":
-		if err := manager.HandleSessionEnd(input); err != nil {
+		if err := manager.HandleSessionEnd(input, rawInput); err != nil {
 			os.Exit(1)
 		}
 	case "pre-compact":
-		if err := manager.HandlePreCompact(input); err != nil {
+		if err := manager.HandlePreCompact(input, rawInput); err != nil {
+			os.Exit(1)
+		}
+	case "setup":
+		if err := manager.HandleSetup(input, rawInput); err != nil {
 			os.Exit(1)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown hook type: %s\n", hookType)
-		fmt.Fprintln(os.Stderr, "Available hooks: idle, busy, session-start, session-end, pre-compact")
+		fmt.Fprintln(os.Stderr, "Available hooks: idle, busy, session-start, session-end, pre-compact, setup")
 		os.Exit(1)
 	}
 }

@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "first-hook.sh"
+          },
+          {
+            "type": "command",
+            "command": "second-hook.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "third-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

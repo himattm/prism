@@ -1,0 +1,42 @@
+{
+  "theme": "dark",
+  "apiKey": "sk-xxx",
+  "statusLine": {
+    "type": "command",
+    "command": "/old/statusline"
+  },
+  "permissions": {
+    "allow": ["Read", "Write"]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "*.py",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python-linter.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "notify-send 'done'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "audit-tool-use.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -346,6 +346,7 @@ type Hookable interface {
 | `HookSessionStart` | `prism hook session-start` | SessionStart | Initialize, load context |
 | `HookSessionEnd` | `prism hook session-end` | SessionEnd | Cleanup, save state |
 | `HookPreCompact` | `prism hook pre-compact` | PreCompact | Warn user, save important data |
+| `HookSetup` | `prism hook setup` | Setup | Repo initialization (--init, --maintenance) |
 
 **Example: Cache Invalidation on Idle**
 
@@ -377,6 +378,7 @@ func (p *MyPlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookCo
 ```go
 type HookContext struct {
     SessionID string  // Current session ID
+    AgentType string  // Agent type if --agent was specified (e.g., "coder", "researcher")
 }
 ```
 
@@ -388,7 +390,8 @@ type HookContext struct {
     "Stop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook idle"}]}],
     "SessionStart": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-start"}]}],
     "SessionEnd": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-end"}]}],
-    "PreCompact": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-compact"}]}]
+    "PreCompact": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-compact"}]}],
+    "Setup": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook setup"}]}]
   }
 }
 ```
