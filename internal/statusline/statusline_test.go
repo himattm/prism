@@ -599,3 +599,166 @@ func TestRenderDir_NoIndicatorForMainRepo(t *testing.T) {
 		t.Errorf("renderDir should not include ⎇ indicator for main repo, got: %s", result)
 	}
 }
+
+// TestFindWorktreeRoot_MainRepo returns false for main repository
+func TestFindWorktreeRoot_MainRepo(t *testing.T) {
+	tmpDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tmpDir)
+
+	root, found := findWorktreeRoot(tmpDir)
+	if found {
+		t.Errorf("findWorktreeRoot should return false for main repo, got root: %s", root)
+	}
+}
+
+// TestFindWorktreeRoot_Worktree returns worktree root
+func TestFindWorktreeRoot_Worktree(t *testing.T) {
+	tmpDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a worktree
+	worktreeDir := filepath.Join(os.TempDir(), "prism-test-worktree-find")
+	defer os.RemoveAll(worktreeDir)
+
+	cmd := exec.Command("git", "worktree", "add", worktreeDir, "HEAD")
+	cmd.Dir = tmpDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+
+	root, found := findWorktreeRoot(worktreeDir)
+	if !found {
+		t.Error("findWorktreeRoot should return true for worktree")
+	}
+	if root != worktreeDir {
+		t.Errorf("expected root %s, got %s", worktreeDir, root)
+	}
+}
+
+// TestFindWorktreeRoot_WorktreeSubdir finds root from subdir
+func TestFindWorktreeRoot_WorktreeSubdir(t *testing.T) {
+	tmpDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a worktree
+	worktreeDir := filepath.Join(os.TempDir(), "prism-test-worktree-subdir")
+	defer os.RemoveAll(worktreeDir)
+
+	cmd := exec.Command("git", "worktree", "add", worktreeDir, "HEAD")
+	cmd.Dir = tmpDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+
+	// Create a subdirectory in the worktree
+	subDir := filepath.Join(worktreeDir, "src", "components")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("failed to create subdir: %v", err)
+	}
+
+	root, found := findWorktreeRoot(subDir)
+	if !found {
+		t.Error("findWorktreeRoot should return true for worktree subdir")
+	}
+	if root != worktreeDir {
+		t.Errorf("expected root %s, got %s", worktreeDir, root)
+	}
+}
+
+// TestFindWorktreeRoot_EmptyDir returns false for empty string
+func TestFindWorktreeRoot_EmptyDir(t *testing.T) {
+	root, found := findWorktreeRoot("")
+	if found {
+		t.Errorf("findWorktreeRoot should return false for empty dir, got root: %s", root)
+	}
+}
+
+// TestRenderDir_CurrentDirInWorktree - main scenario: start in main repo, cd into worktree
+func TestRenderDir_CurrentDirInWorktree(t *testing.T) {
+	tmpDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a worktree
+	worktreeDir := filepath.Join(os.TempDir(), "prism-test-worktree-cd")
+	defer os.RemoveAll(worktreeDir)
+
+	cmd := exec.Command("git", "worktree", "add", worktreeDir, "HEAD")
+	cmd.Dir = tmpDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+
+	// Simulate: Claude started in main repo (projectDir) but cd'd into worktree (currentDir)
+	sl := &StatusLine{
+		input: Input{
+			Workspace: WorkspaceInfo{
+				ProjectDir: tmpDir,      // Where Claude started
+				CurrentDir: worktreeDir, // Where Claude cd'd to
+			},
+		},
+		config: config.Config{},
+	}
+
+	result := sl.renderDir()
+
+	// Should show worktree name with ⎇ indicator
+	worktreeName := filepath.Base(worktreeDir)
+	if !strings.Contains(result, "⎇") {
+		t.Errorf("should show ⎇ indicator when currentDir is in worktree, got: %s", result)
+	}
+	if !strings.Contains(result, worktreeName) {
+		t.Errorf("should show worktree name '%s', got: %s", worktreeName, result)
+	}
+	// Should NOT show the main repo name
+	mainRepoName := filepath.Base(tmpDir)
+	if strings.Contains(result, mainRepoName) {
+		t.Errorf("should NOT show main repo name '%s' when in worktree, got: %s", mainRepoName, result)
+	}
+}
+
+// TestRenderDir_CurrentDirInWorktreeSubdir shows worktree name + subdir
+func TestRenderDir_CurrentDirInWorktreeSubdir(t *testing.T) {
+	tmpDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a worktree
+	worktreeDir := filepath.Join(os.TempDir(), "prism-test-worktree-subdir-render")
+	defer os.RemoveAll(worktreeDir)
+
+	cmd := exec.Command("git", "worktree", "add", worktreeDir, "HEAD")
+	cmd.Dir = tmpDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+
+	// Create a subdirectory in the worktree
+	subDir := filepath.Join(worktreeDir, "src")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("failed to create subdir: %v", err)
+	}
+
+	// Simulate: Claude started in main repo but cd'd into worktree/src
+	sl := &StatusLine{
+		input: Input{
+			Workspace: WorkspaceInfo{
+				ProjectDir: tmpDir, // Where Claude started
+				CurrentDir: subDir, // Worktree subdirectory
+			},
+		},
+		config: config.Config{},
+	}
+
+	result := sl.renderDir()
+
+	// Should show worktree name + /src with ⎇ indicator
+	worktreeName := filepath.Base(worktreeDir)
+	if !strings.Contains(result, "⎇") {
+		t.Errorf("should show ⎇ indicator, got: %s", result)
+	}
+	if !strings.Contains(result, worktreeName) {
+		t.Errorf("should show worktree name '%s', got: %s", worktreeName, result)
+	}
+	if !strings.Contains(result, "/src") {
+		t.Errorf("should show subdir '/src', got: %s", result)
+	}
+}
