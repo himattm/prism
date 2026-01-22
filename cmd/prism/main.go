@@ -213,6 +213,12 @@ func handleUpdate(autoMode bool) {
 		os.Exit(1)
 	}
 
+	// Migrate settings.json to add any new hooks
+	hooksAdded, err := update.MigrateSettings()
+	if err != nil && !autoMode {
+		fmt.Fprintf(os.Stderr, "Warning: failed to migrate settings: %v\n", err)
+	}
+
 	// Clear the update cache so indicator disappears
 	cacheFile := filepath.Join(os.TempDir(), "prism-update-check")
 	os.Remove(cacheFile)
@@ -227,6 +233,9 @@ func handleUpdate(autoMode bool) {
 		os.WriteFile(markerFile, []byte(info.LatestVersion), 0644)
 	} else {
 		fmt.Printf("\nUpdated to %s!\n", info.LatestVersion)
+		if hooksAdded > 0 {
+			fmt.Printf("Added %d new hook(s) to settings.json\n", hooksAdded)
+		}
 	}
 }
 

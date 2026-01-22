@@ -16,6 +16,19 @@ import (
 	"github.com/himattm/prism/internal/version"
 )
 
+// PrismHooks defines all hooks that Prism needs wired up
+var PrismHooks = []struct {
+	Event   string
+	Command string
+}{
+	{"UserPromptSubmit", "$HOME/.claude/prism hook busy"},
+	{"Stop", "$HOME/.claude/prism hook idle"},
+	{"SessionStart", "$HOME/.claude/prism hook session-start"},
+	{"SessionEnd", "$HOME/.claude/prism hook session-end"},
+	{"PreCompact", "$HOME/.claude/prism hook pre-compact"},
+	{"Setup", "$HOME/.claude/prism hook setup"},
+}
+
 const (
 	releasesURL = "https://api.github.com/repos/himattm/prism/releases/latest"
 )
@@ -169,4 +182,113 @@ func compareVersions(a, b string) int {
 	}
 
 	return 0
+}
+
+// MigrateSettings ensures all Prism hooks are wired up in settings.json
+// Returns the number of hooks added (0 if already up to date)
+func MigrateSettings() (int, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
+
+	// Read existing settings
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No settings file - nothing to migrate
+			return 0, nil
+		}
+		return 0, fmt.Errorf("failed to read settings: %w", err)
+	}
+
+	var settings map[string]any
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return 0, fmt.Errorf("failed to parse settings: %w", err)
+	}
+
+	// Ensure hooks object exists
+	hooks, ok := settings["hooks"].(map[string]any)
+	if !ok {
+		hooks = make(map[string]any)
+		settings["hooks"] = hooks
+	}
+
+	// Check and add missing Prism hooks
+	added := 0
+	for _, h := range PrismHooks {
+		if !hasPrismHook(hooks, h.Event, h.Command) {
+			addPrismHook(hooks, h.Event, h.Command)
+			added++
+		}
+	}
+
+	if added == 0 {
+		return 0, nil
+	}
+
+	// Write back
+	output, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal settings: %w", err)
+	}
+
+	if err := os.WriteFile(settingsPath, output, 0644); err != nil {
+		return 0, fmt.Errorf("failed to write settings: %w", err)
+	}
+
+	return added, nil
+}
+
+// hasPrismHook checks if a specific Prism hook command exists for an event
+func hasPrismHook(hooks map[string]any, event, command string) bool {
+	eventHooks, ok := hooks[event].([]any)
+	if !ok {
+		return false
+	}
+
+	for _, hookGroup := range eventHooks {
+		group, ok := hookGroup.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		hookList, ok := group["hooks"].([]any)
+		if !ok {
+			continue
+		}
+
+		for _, hook := range hookList {
+			h, ok := hook.(map[string]any)
+			if !ok {
+				continue
+			}
+			if h["command"] == command {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// addPrismHook adds a Prism hook command to an event
+func addPrismHook(hooks map[string]any, event, command string) {
+	newHook := map[string]any{
+		"hooks": []any{
+			map[string]any{
+				"type":    "command",
+				"command": command,
+			},
+		},
+	}
+
+	eventHooks, ok := hooks[event].([]any)
+	if !ok {
+		eventHooks = []any{}
+	}
+
+	hooks[event] = append(eventHooks, newHook)
 }
