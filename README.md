@@ -341,10 +341,15 @@ type Hookable interface {
 
 | Hook | CLI Command | Claude Code Event | Use Case |
 |------|-------------|-------------------|----------|
-| `HookIdle` | `prism hook idle` | Stop | Cache refresh, cleanup |
-| `HookBusy` | `prism hook busy` | UserPromptSubmit | Notifications, state reset |
 | `HookSessionStart` | `prism hook session-start` | SessionStart | Initialize, load context |
 | `HookSessionEnd` | `prism hook session-end` | SessionEnd | Cleanup, save state |
+| `HookBusy` | `prism hook busy` | UserPromptSubmit | Notifications, state reset |
+| `HookIdle` | `prism hook idle` | Stop | Cache refresh, cleanup |
+| `HookNotification` | `prism hook notification` | Notification | React to notifications |
+| `HookPermissionRequest` | `prism hook permission-request` | PermissionRequest | Permission dialog shown |
+| `HookPreToolUse` | `prism hook pre-tool-use` | PreToolUse | Before tool calls |
+| `HookPostToolUse` | `prism hook post-tool-use` | PostToolUse | After tool calls complete |
+| `HookSubagentStop` | `prism hook subagent-stop` | SubagentStop | Subagent task completed |
 | `HookPreCompact` | `prism hook pre-compact` | PreCompact | Warn user, save important data |
 | `HookSetup` | `prism hook setup` | Setup | Repo initialization (--init, --maintenance) |
 
@@ -390,6 +395,11 @@ type HookContext struct {
     "Stop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook idle"}]}],
     "SessionStart": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-start"}]}],
     "SessionEnd": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-end"}]}],
+    "Notification": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook notification"}]}],
+    "PermissionRequest": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook permission-request"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-tool-use"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook post-tool-use"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook subagent-stop"}]}],
     "PreCompact": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-compact"}]}],
     "Setup": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook setup"}]}]
   }

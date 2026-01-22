@@ -216,7 +216,37 @@ func (m *Manager) HandlePreCompact(input Input, rawInput []byte) error {
 
 // HandleSetup processes the setup hook (triggered by --init, --init-only, --maintenance)
 func (m *Manager) HandleSetup(input Input, rawInput []byte) error {
-	m.logHook("setup", input, rawInput)
+	return m.runSimpleHook(plugins.HookSetup, "setup", input, rawInput)
+}
+
+// HandlePreToolUse processes the pre-tool-use hook (before tool calls)
+func (m *Manager) HandlePreToolUse(input Input, rawInput []byte) error {
+	return m.runSimpleHook(plugins.HookPreToolUse, "pre-tool-use", input, rawInput)
+}
+
+// HandlePostToolUse processes the post-tool-use hook (after tool calls)
+func (m *Manager) HandlePostToolUse(input Input, rawInput []byte) error {
+	return m.runSimpleHook(plugins.HookPostToolUse, "post-tool-use", input, rawInput)
+}
+
+// HandlePermissionRequest processes the permission-request hook
+func (m *Manager) HandlePermissionRequest(input Input, rawInput []byte) error {
+	return m.runSimpleHook(plugins.HookPermissionRequest, "permission-request", input, rawInput)
+}
+
+// HandleNotification processes the notification hook
+func (m *Manager) HandleNotification(input Input, rawInput []byte) error {
+	return m.runSimpleHook(plugins.HookNotification, "notification", input, rawInput)
+}
+
+// HandleSubagentStop processes the subagent-stop hook
+func (m *Manager) HandleSubagentStop(input Input, rawInput []byte) error {
+	return m.runSimpleHook(plugins.HookSubagentStop, "subagent-stop", input, rawInput)
+}
+
+// runSimpleHook is a helper for hooks that just dispatch to plugins without special logic
+func (m *Manager) runSimpleHook(hookType plugins.HookType, hookName string, input Input, rawInput []byte) error {
+	m.logHook(hookName, input, rawInput)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -226,7 +256,7 @@ func (m *Manager) HandleSetup(input Input, rawInput []byte) error {
 		AgentType: input.AgentType,
 	}
 
-	outputs := m.registry.RunHooks(ctx, plugins.HookSetup, hookCtx)
+	outputs := m.registry.RunHooks(ctx, hookType, hookCtx)
 
 	if len(outputs) > 0 {
 		fmt.Print(strings.Join(outputs, "\n"))

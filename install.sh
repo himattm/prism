@@ -262,7 +262,7 @@ fi
 info "Configuring Claude Code settings..."
 
 if [ ! -f "$SETTINGS_FILE" ]; then
-    # Create new settings file
+    # Create new settings file with all hooks
     cat > "$SETTINGS_FILE" << 'EOF'
 {
   "statusLine": {
@@ -270,66 +270,17 @@ if [ ! -f "$SETTINGS_FILE" ]; then
     "command": "$HOME/.claude/prism"
   },
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/prism hook busy"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/prism hook idle"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/prism hook session-start"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/prism hook session-end"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/prism hook pre-compact"
-          }
-        ]
-      }
-    ],
-    "Setup": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/prism hook setup"
-          }
-        ]
-      }
-    ]
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook busy"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook idle"}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-start"}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-end"}]}],
+    "PreCompact": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-compact"}]}],
+    "Setup": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook setup"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-tool-use"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook post-tool-use"}]}],
+    "PermissionRequest": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook permission-request"}]}],
+    "Notification": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook notification"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook subagent-stop"}]}]
   }
 }
 EOF
@@ -339,8 +290,8 @@ else
     BACKUP_FILE="$SETTINGS_FILE.backup.$(date +%s)"
     cp "$SETTINGS_FILE" "$BACKUP_FILE"
 
-    # Define prism hooks to add
-    # Format: "EventName:prism hook command"
+    # Define all prism hooks to add
+    # Format: "EventName:prism-hook-command"
     PRISM_HOOKS=(
         "UserPromptSubmit:busy"
         "Stop:idle"
@@ -348,6 +299,11 @@ else
         "SessionEnd:session-end"
         "PreCompact:pre-compact"
         "Setup:setup"
+        "PreToolUse:pre-tool-use"
+        "PostToolUse:post-tool-use"
+        "PermissionRequest:permission-request"
+        "Notification:notification"
+        "SubagentStop:subagent-stop"
     )
 
     # Start with existing settings, add statusLine
