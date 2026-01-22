@@ -289,54 +289,96 @@ if [ ! -f "$SETTINGS_FILE" ]; then
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/prism hook session-start"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/prism hook session-end"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/prism hook pre-compact"
+          }
+        ]
+      }
+    ],
+    "Setup": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/prism hook setup"
+          }
+        ]
+      }
     ]
   }
 }
 EOF
     success "  Created $SETTINGS_FILE"
 else
-    # Merge with existing settings
+    # Merge with existing settings (preserving custom hooks)
     BACKUP_FILE="$SETTINGS_FILE.backup.$(date +%s)"
     cp "$SETTINGS_FILE" "$BACKUP_FILE"
 
-    # Build the new config to merge
-    NEW_CONFIG=$(cat << 'EOF'
-{
-  "statusLine": {
-    "type": "command",
-    "command": "$HOME/.claude/prism"
-  },
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/prism hook busy"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/prism hook idle"
-          }
-        ]
-      }
-    ]
-  }
-}
-EOF
-)
+    # Define prism hooks to add
+    # Format: "EventName:prism hook command"
+    PRISM_HOOKS=(
+        "UserPromptSubmit:busy"
+        "Stop:idle"
+        "SessionStart:session-start"
+        "SessionEnd:session-end"
+        "PreCompact:pre-compact"
+        "Setup:setup"
+    )
 
-    # Merge: existing settings + new Prism config (Prism config wins for statusLine/hooks)
-    MERGED=$(jq -s '.[0] * .[1]' "$SETTINGS_FILE" <(echo "$NEW_CONFIG"))
+    # Start with existing settings, add statusLine
+    MERGED=$(jq '.statusLine = {"type": "command", "command": "$HOME/.claude/prism"}' "$SETTINGS_FILE")
+
+    # Ensure hooks object exists
+    MERGED=$(echo "$MERGED" | jq '.hooks //= {}')
+
+    # Add each prism hook if not already present
+    for hook_def in "${PRISM_HOOKS[@]}"; do
+        EVENT="${hook_def%%:*}"
+        HOOK_CMD="${hook_def##*:}"
+        PRISM_CMD="\$HOME/.claude/prism hook $HOOK_CMD"
+
+        # Check if this prism command already exists in the hook
+        HAS_PRISM=$(echo "$MERGED" | jq --arg event "$EVENT" --arg cmd "$PRISM_CMD" '
+            .hooks[$event] // [] |
+            any(.[]; .hooks[]? | select(.command == $cmd))
+        ')
+
+        if [ "$HAS_PRISM" = "false" ]; then
+            # Add prism hook to this event (append to existing array or create new)
+            MERGED=$(echo "$MERGED" | jq --arg event "$EVENT" --arg cmd "$PRISM_CMD" '
+                .hooks[$event] = (.hooks[$event] // []) + [{"hooks": [{"type": "command", "command": $cmd}]}]
+            ')
+        fi
+    done
+
     echo "$MERGED" > "$SETTINGS_FILE"
 
-    success "  Updated $SETTINGS_FILE"
+    success "  Updated $SETTINGS_FILE (preserved existing hooks)"
     echo -e "  ${DIM}Backup saved to $BACKUP_FILE${RESET}"
 fi
 

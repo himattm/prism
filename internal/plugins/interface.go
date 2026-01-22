@@ -79,11 +79,13 @@ const (
 	HookSessionStart HookType = "session_start" // SessionStart - Session started/resumed
 	HookSessionEnd   HookType = "session_end"   // SessionEnd - Session ending
 	HookPreCompact   HookType = "pre_compact"   // PreCompact - Before context compaction
+	HookSetup        HookType = "setup"         // Setup - Repository init/maintenance (--init, --init-only, --maintenance)
 )
 
 // HookContext provides context for hook handlers
 type HookContext struct {
 	SessionID string
+	AgentType string         // Agent type if --agent was specified (e.g., "coder", "researcher")
 	Config    map[string]any // Plugin configuration
 }
 
