@@ -147,33 +147,51 @@ func (sl *StatusLine) renderSection(section string) string {
 
 func (sl *StatusLine) renderDir() string {
 	projectDir := sl.input.Workspace.ProjectDir
-	projectName := filepath.Base(projectDir)
+	currentDir := sl.input.Workspace.CurrentDir
+
+	// Determine display base - prioritize worktree detection on currentDir
+	displayBase := projectDir
+	inWorktree := false
+
+	// Check if currentDir is in a worktree (even if projectDir isn't)
+	if currentDir != "" {
+		if worktreeRoot, ok := sl.findWorktreeRootCached(currentDir); ok {
+			displayBase = worktreeRoot
+			inWorktree = true
+		}
+	}
+
+	// Fall back to checking projectDir
+	if !inWorktree {
+		inWorktree = sl.isWorktree()
+	}
+
+	displayName := filepath.Base(displayBase)
 	icon := sl.config.Icon
 	if icon != "" {
 		icon += " "
 	}
 
-	// Calculate subdir if current differs from project
+	// Calculate subdir relative to display base
 	subdir := ""
-	if sl.input.Workspace.CurrentDir != "" && projectDir != "" {
-		if strings.HasPrefix(sl.input.Workspace.CurrentDir, projectDir) {
-			subdir = strings.TrimPrefix(sl.input.Workspace.CurrentDir, projectDir)
+	if currentDir != "" && displayBase != "" {
+		if strings.HasPrefix(currentDir, displayBase) {
+			subdir = strings.TrimPrefix(currentDir, displayBase)
 		}
 	}
 
-	// Check if we're in a worktree (prepend ⎇ indicator)
 	worktreeIndicator := ""
-	if sl.isWorktree() {
+	if inWorktree {
 		worktreeIndicator = fmt.Sprintf("%s⎇%s ", colors.Cyan, colors.Reset)
 	}
 
 	if subdir != "" {
 		return fmt.Sprintf("%s%s%s%s%s%s%s",
-			icon, worktreeIndicator, colors.Dim, colors.Cyan, projectName, colors.Reset,
+			icon, worktreeIndicator, colors.Dim, colors.Cyan, displayName, colors.Reset,
 			colors.Wrap(colors.Cyan, subdir))
 	}
 
-	return fmt.Sprintf("%s%s%s", icon, worktreeIndicator, colors.Wrap(colors.Cyan, projectName))
+	return fmt.Sprintf("%s%s%s", icon, worktreeIndicator, colors.Wrap(colors.Cyan, displayName))
 }
 
 // isWorktree returns true if the project directory is a git worktree
@@ -204,6 +222,55 @@ func (sl *StatusLine) isWorktree() bool {
 		statusCache.Set(cacheKey, "false", cache.WorktreeTTL)
 	}
 	return isWt
+}
+
+// findWorktreeRoot walks up from dir to find if it's within a git worktree.
+// Returns (worktreeRoot, true) if found, ("", false) otherwise.
+func findWorktreeRoot(dir string) (string, bool) {
+	if dir == "" {
+		return "", false
+	}
+
+	current := dir
+	for {
+		gitPath := filepath.Join(current, ".git")
+		info, err := os.Stat(gitPath)
+		if err == nil {
+			if !info.IsDir() {
+				return current, true // .git is file = worktree
+			}
+			return "", false // .git is dir = main repo, stop
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", false // reached root
+		}
+		current = parent
+	}
+}
+
+// findWorktreeRootCached wraps findWorktreeRoot with caching
+func (sl *StatusLine) findWorktreeRootCached(dir string) (string, bool) {
+	if dir == "" {
+		return "", false
+	}
+
+	cacheKey := "worktree-root:" + dir
+	if cached, ok := statusCache.Get(cacheKey); ok {
+		if cached == "" {
+			return "", false
+		}
+		return cached, true
+	}
+
+	root, isWorktree := findWorktreeRoot(dir)
+	if isWorktree {
+		statusCache.Set(cacheKey, root, cache.WorktreeTTL)
+	} else {
+		statusCache.Set(cacheKey, "", cache.WorktreeTTL)
+	}
+	return root, isWorktree
 }
 
 func (sl *StatusLine) renderModel() string {
