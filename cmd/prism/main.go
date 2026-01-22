@@ -52,7 +52,9 @@ func main() {
 
 	case "hook":
 		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "Usage: prism hook <idle|busy|session-start|session-end|pre-compact|setup>")
+			fmt.Fprintln(os.Stderr, "Usage: prism hook <type>")
+			fmt.Fprintln(os.Stderr, "Types: idle, busy, session-start, session-end, pre-compact, setup,")
+			fmt.Fprintln(os.Stderr, "       pre-tool-use, post-tool-use, permission-request, notification, subagent-stop")
 			os.Exit(1)
 		}
 		handleHook(os.Args[2])
@@ -318,9 +320,30 @@ func handleHook(hookType string) {
 		if err := manager.HandleSetup(input, rawInput); err != nil {
 			os.Exit(1)
 		}
+	case "pre-tool-use":
+		if err := manager.HandlePreToolUse(input, rawInput); err != nil {
+			os.Exit(1)
+		}
+	case "post-tool-use":
+		if err := manager.HandlePostToolUse(input, rawInput); err != nil {
+			os.Exit(1)
+		}
+	case "permission-request":
+		if err := manager.HandlePermissionRequest(input, rawInput); err != nil {
+			os.Exit(1)
+		}
+	case "notification":
+		if err := manager.HandleNotification(input, rawInput); err != nil {
+			os.Exit(1)
+		}
+	case "subagent-stop":
+		if err := manager.HandleSubagentStop(input, rawInput); err != nil {
+			os.Exit(1)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown hook type: %s\n", hookType)
-		fmt.Fprintln(os.Stderr, "Available hooks: idle, busy, session-start, session-end, pre-compact, setup")
+		fmt.Fprintln(os.Stderr, "Available: idle, busy, session-start, session-end, pre-compact, setup,")
+		fmt.Fprintln(os.Stderr, "           pre-tool-use, post-tool-use, permission-request, notification, subagent-stop")
 		os.Exit(1)
 	}
 }

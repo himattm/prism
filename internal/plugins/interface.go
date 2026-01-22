@@ -73,13 +73,26 @@ func (r *Registry) List() []string {
 type HookType string
 
 const (
-	// Core hooks (most useful for plugins)
-	HookIdle         HookType = "idle"          // Stop - Claude finished responding
-	HookBusy         HookType = "busy"          // UserPromptSubmit - User submitted prompt
+	// Session lifecycle hooks
 	HookSessionStart HookType = "session_start" // SessionStart - Session started/resumed
 	HookSessionEnd   HookType = "session_end"   // SessionEnd - Session ending
-	HookPreCompact   HookType = "pre_compact"   // PreCompact - Before context compaction
-	HookSetup        HookType = "setup"         // Setup - Repository init/maintenance (--init, --init-only, --maintenance)
+
+	// User interaction hooks
+	HookBusy              HookType = "busy"               // UserPromptSubmit - User submitted prompt
+	HookIdle              HookType = "idle"               // Stop - Claude finished responding
+	HookNotification      HookType = "notification"       // Notification - Claude Code sends a notification
+	HookPermissionRequest HookType = "permission_request" // PermissionRequest - Permission dialog shown
+
+	// Tool hooks
+	HookPreToolUse  HookType = "pre_tool_use"  // PreToolUse - Before tool calls (can block)
+	HookPostToolUse HookType = "post_tool_use" // PostToolUse - After tool calls complete
+
+	// Agent hooks
+	HookSubagentStop HookType = "subagent_stop" // SubagentStop - Subagent task completed
+
+	// Context management hooks
+	HookPreCompact HookType = "pre_compact" // PreCompact - Before context compaction
+	HookSetup      HookType = "setup"       // Setup - Repository init/maintenance (--init, --init-only, --maintenance)
 )
 
 // HookContext provides context for hook handlers
