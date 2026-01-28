@@ -29,10 +29,11 @@ func (p *UsagePlugin) SetCache(c *cache.Cache) {
 // usageConfig holds all configuration options for the usage plugin
 type usageConfig struct {
 	// Max/Pro plan options (usage_plan subsection)
-	style     string // "text" or "bars"
-	showHours bool   // 5-hour session limit
-	showDays  bool   // 7-day weekly limit
-	showOpus  bool   // Opus-specific limit
+	style       string // "text" or "bars"
+	showHours   bool   // 5-hour session limit
+	showMinutes bool   // include minutes in hour time display
+	showDays    bool   // 7-day weekly limit
+	showOpus    bool   // Opus-specific limit
 
 	// API billing options (api_billing subsection)
 	costDecimals int    // decimal places for cost (default 2)
@@ -42,10 +43,11 @@ type usageConfig struct {
 func (p *UsagePlugin) parseConfig(input plugin.Input) usageConfig {
 	cfg := usageConfig{
 		// usage_plan defaults
-		style:     "text",
-		showHours: true,
-		showDays:  true,
-		showOpus:  true,
+		style:       "text",
+		showHours:   true,
+		showMinutes: true,
+		showDays:    true,
+		showOpus:    true,
 		// api_billing defaults
 		costDecimals: 2,
 		costColor:    "gray",
@@ -59,6 +61,9 @@ func (p *UsagePlugin) parseConfig(input plugin.Input) usageConfig {
 			}
 			if v, ok := plan["show_hours"].(bool); ok {
 				cfg.showHours = v
+			}
+			if v, ok := plan["show_minutes"].(bool); ok {
+				cfg.showMinutes = v
 			}
 			if v, ok := plan["show_days"].(bool); ok {
 				cfg.showDays = v
@@ -172,7 +177,7 @@ func (p *UsagePlugin) renderText(input plugin.Input, usage *UsageResponse, cfg u
 	// 5-hour session
 	if cfg.showHours && usage.FiveHour != nil {
 		timeRemaining, _ := TimeUntilReset(usage.FiveHour.ResetsAt)
-		timeStr := FormatTimeRemaining(timeRemaining, false)
+		timeStr := FormatTimeRemaining(timeRemaining, false, cfg.showMinutes)
 		color := getUsageColor(usage.FiveHour.Utilization, white, yellow, red)
 		result += fmt.Sprintf("%s%s:%.0f%%%s", color, timeStr, usage.FiveHour.Utilization, reset)
 	}
@@ -183,7 +188,7 @@ func (p *UsagePlugin) renderText(input plugin.Input, usage *UsageResponse, cfg u
 			result += " "
 		}
 		timeRemaining, _ := TimeUntilReset(usage.SevenDay.ResetsAt)
-		timeStr := FormatTimeRemaining(timeRemaining, true)
+		timeStr := FormatTimeRemaining(timeRemaining, true, false)
 		color := getUsageColor(usage.SevenDay.Utilization, white, yellow, red)
 		result += fmt.Sprintf("%s%s:%.0f%%%s", color, timeStr, usage.SevenDay.Utilization, reset)
 	}
@@ -194,7 +199,7 @@ func (p *UsagePlugin) renderText(input plugin.Input, usage *UsageResponse, cfg u
 			result += " "
 		}
 		timeRemaining, _ := TimeUntilReset(usage.SevenDayOpus.ResetsAt)
-		timeStr := FormatTimeRemaining(timeRemaining, true)
+		timeStr := FormatTimeRemaining(timeRemaining, true, false)
 		color := getUsageColor(usage.SevenDayOpus.Utilization, white, yellow, red)
 		result += fmt.Sprintf("%s%s:%.0f%%%s", color, timeStr, usage.SevenDayOpus.Utilization, reset)
 	}

@@ -193,8 +193,8 @@ func TimeUntilReset(resetsAt string) (time.Duration, error) {
 	return time.Until(resetTime), nil
 }
 
-// FormatTimeRemaining formats a duration as hours or days with rounding up
-func FormatTimeRemaining(d time.Duration, useDays bool) string {
+// FormatTimeRemaining formats a duration as days or hours (with optional minutes)
+func FormatTimeRemaining(d time.Duration, useDays bool, showMinutes bool) string {
 	if d < 0 {
 		d = 0
 	}
@@ -211,13 +211,19 @@ func FormatTimeRemaining(d time.Duration, useDays bool) string {
 		return fmt.Sprintf("%dd", days)
 	}
 
-	// Round up to nearest hour
-	hours := int(d.Hours()) + 1
-	if d.Minutes() <= 60 {
-		hours = 1
+	// Cap at 5 hours
+	if d.Hours() > 5 {
+		d = 5 * time.Hour
 	}
-	if hours > 5 {
-		hours = 5
+
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) - hours*60
+
+	if showMinutes && minutes > 0 {
+		return fmt.Sprintf("%dh%dm", hours, minutes)
+	}
+	if hours == 0 {
+		return "0h"
 	}
 	return fmt.Sprintf("%dh", hours)
 }

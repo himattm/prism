@@ -30,6 +30,7 @@ func (p *UsageTextPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 
 	// Check if enabled (default: true)
 	showHours := true
+	showMinutes := true
 	showDays := true
 	showOpus := true
 
@@ -39,6 +40,9 @@ func (p *UsageTextPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 		}
 		if sh, ok := cfg["show_hours"].(bool); ok {
 			showHours = sh
+		}
+		if sm, ok := cfg["show_minutes"].(bool); ok {
+			showMinutes = sm
 		}
 		if sd, ok := cfg["show_days"].(bool); ok {
 			showDays = sd
@@ -65,7 +69,7 @@ func (p *UsageTextPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 	// 5-hour session text
 	if showHours && usage.FiveHour != nil {
 		timeRemaining, _ := TimeUntilReset(usage.FiveHour.ResetsAt)
-		timeStr := FormatTimeRemaining(timeRemaining, false) // false = use hours
+		timeStr := FormatTimeRemaining(timeRemaining, false, showMinutes)
 		color := getUrgencyColor(usage.FiveHour.Utilization, white, yellow, red)
 
 		result += fmt.Sprintf("%s%s:%.0f%%%s",
@@ -78,7 +82,7 @@ func (p *UsageTextPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 			result += " "
 		}
 		timeRemaining, _ := TimeUntilReset(usage.SevenDay.ResetsAt)
-		timeStr := FormatTimeRemaining(timeRemaining, true) // true = use days
+		timeStr := FormatTimeRemaining(timeRemaining, true, false)
 		color := getUrgencyColor(usage.SevenDay.Utilization, white, yellow, red)
 
 		result += fmt.Sprintf("%s%s:%.0f%%%s",
@@ -91,7 +95,7 @@ func (p *UsageTextPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 			result += " "
 		}
 		timeRemaining, _ := TimeUntilReset(usage.SevenDayOpus.ResetsAt)
-		timeStr := FormatTimeRemaining(timeRemaining, true) // true = use days
+		timeStr := FormatTimeRemaining(timeRemaining, true, false)
 		color := getUrgencyColor(usage.SevenDayOpus.Utilization, white, yellow, red)
 
 		result += fmt.Sprintf("%s%s:%.0f%%%s",
