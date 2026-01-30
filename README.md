@@ -208,10 +208,41 @@ Shows **actionable** usage - percentage of capacity before autocompact triggers:
 |--------|-------------|---------|
 | `git` | Branch, dirty, upstream | `main*+2 ⇣3⇡1` |
 | `android_devices` | Connected Android devices | `⬡ Pixel 6 (14)` |
+| `agent_task_queue` | Build queue status | `tq: ▸ gradlew:build ⧗ 2` |
 | `update` | Auto-update + indicator | `⬆` (yellow when update available) |
 | `usage` | Auto-detect: cost or plan limits | `$1.23` or `3h:78%` |
 | `usage_text` | Max/Pro limits (text only) | `3h:78% 5d:40%` |
 | `usage_bars` | Max/Pro limits (bars only) | `▂█ ▅▃ ▅▂` |
+
+### Agent Task Queue
+
+Shows the status of the [agent-task-queue](https://github.com/block/agent-task-queue) build queue in your status line. This prevents multiple expensive builds (gradle, pytest, npm, etc.) from running simultaneously and freezing your system.
+
+**Display format:**
+- `tq: ▸ gradlew:build` - Currently running task
+- `tq: ▸ pytest ⧗ 2` - Running task with 2 waiting in queue
+- `tq: ⚠ 3 waiting (run 'tq clear')` - Error: queue stalled (red text)
+
+**Auto-install:** If `tq` is not found and `uv` is available, the plugin will automatically install [agent-task-queue](https://pypi.org/project/agent-task-queue/) via `uv tool install`.
+
+**Configuration:**
+```json
+{
+  "plugins": {
+    "agent_task_queue": {
+      "max_command_length": 30,
+      "show_queue_count": true
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `max_command_length` | number | `30` | Truncate command display at this length |
+| `show_queue_count` | bool | `true` | Show waiting task count |
+
+The plugin simplifies gradle commands for readability: `./gradlew :app:assembleDebug` → `gradlew:assembleDebug`
 
 ## Contributing Plugins
 
