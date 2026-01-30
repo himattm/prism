@@ -147,10 +147,10 @@ This replaces the old `cost` section. Simply use `usage` in your sections array 
 
 **Text format** (default):
 ```
-3h:78% 5d:40% 4d:25%
-│      │      └─ Opus weekly: 4 days until reset, 25% used
-│      └─ Weekly limit: 5 days until reset, 40% used
-└─ Session limit: 3 hours until reset, 78% used
+4h30m:78% 5d:40% 4d:25%
+│         │      └─ Opus weekly: 4 days until reset, 25% used
+│         └─ Weekly limit: 5 days until reset, 40% used
+└─ Session limit: 4 hours 30 minutes until reset, 78% used
 ```
 
 **Bars format**:
@@ -171,6 +171,7 @@ Colors indicate urgency: white (<70%), yellow (70-89%), red (90%+)
     "usage_plan": {
       "style": "text",      // "text" or "bars"
       "show_hours": true,   // 5-hour session limit
+      "show_minutes": true, // include minutes in hour display (e.g., "4h30m")
       "show_days": true,    // 7-day weekly limit
       "show_opus": true     // Opus-specific weekly limit
     },

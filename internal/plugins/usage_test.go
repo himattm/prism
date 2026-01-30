@@ -228,31 +228,39 @@ func TestLevelToBarChar(t *testing.T) {
 
 func TestFormatTimeRemaining(t *testing.T) {
 	tests := []struct {
-		duration time.Duration
-		useDays  bool
-		expected string
+		duration    time.Duration
+		useDays     bool
+		showMinutes bool
+		expected    string
 	}{
-		// Hours format
-		{4*time.Hour + 30*time.Minute, false, "5h"},
-		{2*time.Hour + 10*time.Minute, false, "3h"},
-		{45 * time.Minute, false, "1h"},
-		{10 * time.Minute, false, "1h"},
-		{6 * time.Hour, false, "5h"}, // capped at 5h
-		{0, false, "1h"},
-		{-1 * time.Hour, false, "1h"}, // negative treated as 0
+		// Hours format with minutes enabled
+		{4*time.Hour + 30*time.Minute, false, true, "4h30m"},
+		{2*time.Hour + 10*time.Minute, false, true, "2h10m"},
+		{45 * time.Minute, false, true, "0h45m"},
+		{10 * time.Minute, false, true, "0h10m"},
+		{6 * time.Hour, false, true, "5h"},  // capped at 5h, no remaining minutes
+		{0, false, true, "0h"},              // zero duration
+		{-1 * time.Hour, false, true, "0h"}, // negative treated as 0
 
-		// Days format
-		{6*24*time.Hour + 12*time.Hour, true, "7d"},
-		{3*24*time.Hour + 1*time.Hour, true, "4d"},
-		{20 * time.Hour, true, "1d"},
-		{8 * 24 * time.Hour, true, "7d"}, // capped at 7d
-		{0, true, "1d"},
+		// Hours format with minutes disabled
+		{4*time.Hour + 30*time.Minute, false, false, "4h"},
+		{2*time.Hour + 10*time.Minute, false, false, "2h"},
+		{45 * time.Minute, false, false, "0h"},
+		{6 * time.Hour, false, false, "5h"}, // capped at 5h
+
+		// Days format (showMinutes is ignored)
+		{6*24*time.Hour + 12*time.Hour, true, false, "7d"},
+		{3*24*time.Hour + 1*time.Hour, true, false, "4d"},
+		{20 * time.Hour, true, false, "1d"},
+		{8 * 24 * time.Hour, true, false, "7d"}, // capped at 7d
+		{0, true, false, "1d"},
 	}
 
 	for _, tt := range tests {
-		result := FormatTimeRemaining(tt.duration, tt.useDays)
+		result := FormatTimeRemaining(tt.duration, tt.useDays, tt.showMinutes)
 		if result != tt.expected {
-			t.Errorf("FormatTimeRemaining(%v, %v): expected %s, got %s", tt.duration, tt.useDays, tt.expected, result)
+			t.Errorf("FormatTimeRemaining(%v, useDays=%v, showMinutes=%v): expected %s, got %s",
+				tt.duration, tt.useDays, tt.showMinutes, tt.expected, result)
 		}
 	}
 }
