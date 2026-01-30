@@ -24,7 +24,7 @@ func (c Config) GetAutocompactBuffer() float64 {
 
 // DefaultSections returns the default section order
 func DefaultSections() []string {
-	return []string{"dir", "model", "context", "linesChanged", "usage", "git", "android_devices"}
+	return []string{"dir", "model", "context", "linesChanged", "usage", "git", "android_devices", "agent_task_queue"}
 }
 
 // Load reads and merges configuration from all config files
