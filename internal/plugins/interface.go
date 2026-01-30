@@ -31,6 +31,7 @@ func NewRegistry() *Registry {
 	// Register native plugins with shared cache
 	r.registerWithCache(&AndroidPlugin{})
 	r.registerWithCache(&GitPlugin{})
+	r.registerWithCache(&SpotifyPlugin{})
 	r.registerWithCache(&TaskQueuePlugin{})
 	r.registerWithCache(&UpdatePlugin{})
 	r.registerWithCache(&UsageBarsPlugin{})
