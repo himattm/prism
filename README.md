@@ -419,19 +419,37 @@ type HookContext struct {
 }
 ```
 
+**Async vs Sync Hooks (Claude Code v2.1.0+):**
+
+Hooks can run synchronously (Claude waits) or asynchronously (fire-and-forget). Prism uses async for hooks that don't need to display output or block execution:
+
+| Hook | Mode | Rationale |
+|------|------|-----------|
+| `UserPromptSubmit` | **sync** | UpdatePlugin shows notifications here |
+| `Stop` | **async** | Cache invalidation, no output needed |
+| `SessionStart` | **async** | Fast init, fire-and-forget |
+| `SessionEnd` | **async** | Cleanup, fire-and-forget |
+| `PreCompact` | **sync** | May warn user before compaction |
+| `Setup` | **sync** | May output setup status |
+| `PreToolUse` | **sync** | Can block tool execution |
+| `PostToolUse` | **async** | Logging only |
+| `PermissionRequest` | **sync** | May display info |
+| `Notification` | **async** | Logging only |
+| `SubagentStop` | **async** | Logging only |
+
 **Full settings.json with all hooks:**
 ```json
 {
   "hooks": {
     "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook busy"}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook idle"}]}],
-    "SessionStart": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-start"}]}],
-    "SessionEnd": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-end"}]}],
-    "Notification": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook notification"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook idle", "async": true}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-start", "async": true}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-end", "async": true}]}],
+    "Notification": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook notification", "async": true}]}],
     "PermissionRequest": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook permission-request"}]}],
     "PreToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-tool-use"}]}],
-    "PostToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook post-tool-use"}]}],
-    "SubagentStop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook subagent-stop"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook post-tool-use", "async": true}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook subagent-stop", "async": true}]}],
     "PreCompact": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-compact"}]}],
     "Setup": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook setup"}]}]
   }

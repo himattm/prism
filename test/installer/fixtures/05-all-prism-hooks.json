@@ -19,7 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/prism hook idle"
+            "command": "$HOME/.claude/prism hook idle",
+            "async": true
           }
         ]
       }
@@ -29,7 +30,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/prism hook session-start"
+            "command": "$HOME/.claude/prism hook session-start",
+            "async": true
           }
         ]
       }
@@ -39,7 +41,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/prism hook session-end"
+            "command": "$HOME/.claude/prism hook session-end",
+            "async": true
           }
         ]
       }
@@ -60,6 +63,59 @@
           {
             "type": "command",
             "command": "$HOME/.claude/prism hook setup"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/prism hook pre-tool-use"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/prism hook post-tool-use",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/prism hook permission-request"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/prism hook notification",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/prism hook subagent-stop",
+            "async": true
           }
         ]
       }

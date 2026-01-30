@@ -5,7 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/prism hook idle"
+            "command": "$HOME/.claude/prism hook idle",
+            "async": true
           }
         ]
       }
