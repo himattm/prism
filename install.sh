@@ -271,16 +271,16 @@ if [ ! -f "$SETTINGS_FILE" ]; then
   },
   "hooks": {
     "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook busy"}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook idle"}]}],
-    "SessionStart": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-start"}]}],
-    "SessionEnd": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-end"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook idle", "async": true}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-start", "async": true}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook session-end", "async": true}]}],
     "PreCompact": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-compact"}]}],
     "Setup": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook setup"}]}],
     "PreToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook pre-tool-use"}]}],
-    "PostToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook post-tool-use"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook post-tool-use", "async": true}]}],
     "PermissionRequest": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook permission-request"}]}],
-    "Notification": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook notification"}]}],
-    "SubagentStop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook subagent-stop"}]}]
+    "Notification": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook notification", "async": true}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "$HOME/.claude/prism hook subagent-stop", "async": true}]}]
   }
 }
 EOF
@@ -291,19 +291,19 @@ else
     cp "$SETTINGS_FILE" "$BACKUP_FILE"
 
     # Define all prism hooks to add
-    # Format: "EventName:prism-hook-command"
+    # Format: "EventName:prism-hook-command:async" (async is optional)
     PRISM_HOOKS=(
-        "UserPromptSubmit:busy"
-        "Stop:idle"
-        "SessionStart:session-start"
-        "SessionEnd:session-end"
-        "PreCompact:pre-compact"
-        "Setup:setup"
-        "PreToolUse:pre-tool-use"
-        "PostToolUse:post-tool-use"
-        "PermissionRequest:permission-request"
-        "Notification:notification"
-        "SubagentStop:subagent-stop"
+        "UserPromptSubmit:busy:"
+        "Stop:idle:async"
+        "SessionStart:session-start:async"
+        "SessionEnd:session-end:async"
+        "PreCompact:pre-compact:"
+        "Setup:setup:"
+        "PreToolUse:pre-tool-use:"
+        "PostToolUse:post-tool-use:async"
+        "PermissionRequest:permission-request:"
+        "Notification:notification:async"
+        "SubagentStop:subagent-stop:async"
     )
 
     # Start with existing settings, add statusLine
@@ -314,8 +314,11 @@ else
 
     # Add each prism hook if not already present
     for hook_def in "${PRISM_HOOKS[@]}"; do
+        # Parse: EVENT:HOOK_CMD:ASYNC_FLAG
         EVENT="${hook_def%%:*}"
-        HOOK_CMD="${hook_def##*:}"
+        REST="${hook_def#*:}"
+        HOOK_CMD="${REST%%:*}"
+        ASYNC_FLAG="${REST##*:}"
         PRISM_CMD="\$HOME/.claude/prism hook $HOOK_CMD"
 
         # Check if this prism command already exists in the hook
@@ -326,9 +329,15 @@ else
 
         if [ "$HAS_PRISM" = "false" ]; then
             # Add prism hook to this event (append to existing array or create new)
-            MERGED=$(echo "$MERGED" | jq --arg event "$EVENT" --arg cmd "$PRISM_CMD" '
-                .hooks[$event] = (.hooks[$event] // []) + [{"hooks": [{"type": "command", "command": $cmd}]}]
-            ')
+            if [ "$ASYNC_FLAG" = "async" ]; then
+                MERGED=$(echo "$MERGED" | jq --arg event "$EVENT" --arg cmd "$PRISM_CMD" '
+                    .hooks[$event] = (.hooks[$event] // []) + [{"hooks": [{"type": "command", "command": $cmd, "async": true}]}]
+                ')
+            else
+                MERGED=$(echo "$MERGED" | jq --arg event "$EVENT" --arg cmd "$PRISM_CMD" '
+                    .hooks[$event] = (.hooks[$event] // []) + [{"hooks": [{"type": "command", "command": $cmd}]}]
+                ')
+            fi
         fi
     done
 

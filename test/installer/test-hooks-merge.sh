@@ -28,13 +28,19 @@ run_merge() {
     local output_file="$2"
 
     # Define prism hooks to add
+    # Format: "EventName:prism-hook-command:async" (async is optional)
     local -a PRISM_HOOKS=(
-        "UserPromptSubmit:busy"
-        "Stop:idle"
-        "SessionStart:session-start"
-        "SessionEnd:session-end"
-        "PreCompact:pre-compact"
-        "Setup:setup"
+        "UserPromptSubmit:busy:"
+        "Stop:idle:async"
+        "SessionStart:session-start:async"
+        "SessionEnd:session-end:async"
+        "PreCompact:pre-compact:"
+        "Setup:setup:"
+        "PreToolUse:pre-tool-use:"
+        "PostToolUse:post-tool-use:async"
+        "PermissionRequest:permission-request:"
+        "Notification:notification:async"
+        "SubagentStop:subagent-stop:async"
     )
 
     # Start with existing settings, add statusLine
@@ -45,8 +51,11 @@ run_merge() {
 
     # Add each prism hook if not already present
     for hook_def in "${PRISM_HOOKS[@]}"; do
+        # Parse: EVENT:HOOK_CMD:ASYNC_FLAG
         local EVENT="${hook_def%%:*}"
-        local HOOK_CMD="${hook_def##*:}"
+        local REST="${hook_def#*:}"
+        local HOOK_CMD="${REST%%:*}"
+        local ASYNC_FLAG="${REST##*:}"
         local PRISM_CMD="\$HOME/.claude/prism hook $HOOK_CMD"
 
         # Check if this prism command already exists in the hook
@@ -57,9 +66,15 @@ run_merge() {
 
         if [ "$HAS_PRISM" = "false" ]; then
             # Add prism hook to this event (append to existing array or create new)
-            MERGED=$(echo "$MERGED" | jq --arg event "$EVENT" --arg cmd "$PRISM_CMD" '
-                .hooks[$event] = (.hooks[$event] // []) + [{"hooks": [{"type": "command", "command": $cmd}]}]
-            ')
+            if [ "$ASYNC_FLAG" = "async" ]; then
+                MERGED=$(echo "$MERGED" | jq --arg event "$EVENT" --arg cmd "$PRISM_CMD" '
+                    .hooks[$event] = (.hooks[$event] // []) + [{"hooks": [{"type": "command", "command": $cmd, "async": true}]}]
+                ')
+            else
+                MERGED=$(echo "$MERGED" | jq --arg event "$EVENT" --arg cmd "$PRISM_CMD" '
+                    .hooks[$event] = (.hooks[$event] // []) + [{"hooks": [{"type": "command", "command": $cmd}]}]
+                ')
+            fi
         fi
     done
 
@@ -69,7 +84,19 @@ run_merge() {
 # Test helper: check if all prism hooks are present
 has_all_prism_hooks() {
     local file="$1"
-    local hooks=("UserPromptSubmit:busy" "Stop:idle" "SessionStart:session-start" "SessionEnd:session-end" "PreCompact:pre-compact" "Setup:setup")
+    local hooks=(
+        "UserPromptSubmit:busy"
+        "Stop:idle"
+        "SessionStart:session-start"
+        "SessionEnd:session-end"
+        "PreCompact:pre-compact"
+        "Setup:setup"
+        "PreToolUse:pre-tool-use"
+        "PostToolUse:post-tool-use"
+        "PermissionRequest:permission-request"
+        "Notification:notification"
+        "SubagentStop:subagent-stop"
+    )
 
     for hook_def in "${hooks[@]}"; do
         local event="${hook_def%%:*}"
