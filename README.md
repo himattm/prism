@@ -108,7 +108,7 @@ Prism uses a 3-tier config system (highest priority first):
 {
   "sections": [
     ["dir", "model", "context", "usage", "git"],
-    ["android_devices"]
+    ["spotify", "android_devices"]
   ]
 }
 ```
@@ -209,6 +209,7 @@ Shows **actionable** usage - percentage of capacity before autocompact triggers:
 | `git` | Branch, dirty, upstream | `main*+2 ⇣3⇡1` |
 | `android_devices` | Connected Android devices | `⬡ Pixel 6 (14)` |
 | `agent_task_queue` | Build queue status | `tq: ▸ gradlew:build ⧗ 2` |
+| `spotify` | Now playing track | `♫ Artist - Track` |
 | `update` | Auto-update + indicator | `⬆` (yellow when update available) |
 | `usage` | Auto-detect: cost or plan limits | `$1.23` or `3h:78%` |
 | `usage_text` | Max/Pro limits (text only) | `3h:78% 5d:40%` |
@@ -243,6 +244,32 @@ Shows the status of the [agent-task-queue](https://github.com/block/agent-task-q
 | `show_queue_count` | bool | `true` | Show waiting task count |
 
 The plugin simplifies gradle commands for readability: `./gradlew :app:assembleDebug` → `gradlew:assembleDebug`
+
+### Spotify
+
+Shows the currently playing Spotify track. Works on macOS (via AppleScript) and Linux (via `playerctl`).
+
+```
+♫ Artist - Track Title     (playing - emerald)
+⏸ Artist - Track Title     (paused - gray, if enabled)
+```
+
+**Linux requirement:** Install `playerctl` (`apt install playerctl`, `dnf install playerctl`, etc.)
+
+**Configuration:**
+
+```json
+{
+  "plugins": {
+    "spotify": {
+      "show_icon": true,        // Show ♫ or ⏸ icon (default: true)
+      "max_length": 40,         // Truncate long titles (default: 40)
+      "format": "artist_track", // "artist_track", "track_artist", or "track_only"
+      "show_when_paused": false // Show track when paused (default: false)
+    }
+  }
+}
+```
 
 ## Contributing Plugins
 
