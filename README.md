@@ -108,7 +108,7 @@ Prism uses a 3-tier config system (highest priority first):
 {
   "sections": [
     ["dir", "model", "context", "usage", "git"],
-    ["android_devices"]
+    ["spotify", "android_devices"]
   ]
 }
 ```

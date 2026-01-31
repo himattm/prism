@@ -120,23 +120,87 @@ rename_section() {
     return 1
 }
 
-# Run migrations based on version
-# Each migration specifies the version it was introduced in
+# Add a section to config file (on a new line for multi-line, or appended for flat)
+# Usage: add_section "spotify" "/path/to/config.json"
+add_section() {
+    local section="$1"
+    local config_file="$2"
+
+    [ ! -f "$config_file" ] && return 1
+
+    # Check if section already exists
+    if grep -q "\"$section\"" "$config_file" 2>/dev/null; then
+        return 1  # Already exists
+    fi
+
+    local tmp=$(mktemp)
+    jq --arg s "$section" '
+        if .sections then
+            .sections |= (
+                if type == "array" then
+                    if (.[0] | type) == "array" then
+                        # Nested array: add as new line
+                        . + [[$s]]
+                    else
+                        # Flat array: convert to nested with new line
+                        [., [$s]]
+                    end
+                else
+                    .
+                end
+            )
+        else
+            # No sections, create with the new section on line 2
+            .sections = [["dir", "model", "context", "usage", "git"], [$s]]
+        end
+    ' "$config_file" > "$tmp" && mv "$tmp" "$config_file"
+    return 0
+}
+
+# Get config version from config file (empty if not set)
+get_config_version() {
+    local config_file="$1"
+    [ ! -f "$config_file" ] && echo "" && return
+    jq -r '.configVersion // ""' "$config_file" 2>/dev/null || echo ""
+}
+
+# Set config version in config file
+set_config_version() {
+    local config_file="$1"
+    local new_version="$2"
+    [ ! -f "$config_file" ] && return
+    local tmp=$(mktemp)
+    jq --arg v "$new_version" '.configVersion = $v' "$config_file" > "$tmp" && mv "$tmp" "$config_file"
+}
+
+# Run migrations based on CONFIG version (not binary version)
+# This ensures we don't re-apply migrations to user-customized configs
 run_migrations() {
-    local old_version="$1"
     local migrated=false
 
-    # Fresh install - no migrations needed
-    [ -z "$old_version" ] && return
+    # No config file - no migrations needed (fresh install will create it)
+    [ ! -f "$GLOBAL_CONFIG" ] && return
 
-    info "Checking for config migrations..."
+    # Get config version (what migrations have been applied)
+    local config_version
+    config_version=$(get_config_version "$GLOBAL_CONFIG")
+
+    # If no config version, this is a pre-0.7.0 config - use binary version as baseline
+    if [ -z "$config_version" ]; then
+        config_version="$1"  # Fall back to old binary version for legacy configs
+        [ -z "$config_version" ] && config_version="0.0.0"
+    fi
+
+    info "Checking for config migrations (config version: ${config_version:-none})..."
 
     # ============================================================
     # MIGRATIONS - Add new migrations at the bottom
+    # Migrations run based on configVersion, not binary version.
+    # Once a migration runs, configVersion is updated so it won't run again.
     # ============================================================
 
     # v0.4.0: Remove gradle and xcode plugins
-    if version_lt "$old_version" "0.4.0"; then
+    if version_lt "$config_version" "0.4.0"; then
         if remove_section "gradle" "$GLOBAL_CONFIG"; then
             success "  Migrated: removed 'gradle' section (plugin removed)"
             migrated=true
@@ -145,29 +209,31 @@ run_migrations() {
             success "  Migrated: removed 'xcode' section (plugin removed)"
             migrated=true
         fi
-    fi
-
-    # v0.4.0: Remove mcp plugin
-    if version_lt "$old_version" "0.4.0"; then
         if remove_section "mcp" "$GLOBAL_CONFIG"; then
             success "  Migrated: removed 'mcp' section (plugin removed)"
             migrated=true
         fi
     fi
 
-    # Example future migration:
-    # v0.5.0: Rename cost to usage
-    # if version_lt "$old_version" "0.5.0"; then
-    #     if rename_section "cost" "usage" "$GLOBAL_CONFIG"; then
-    #         success "  Migrated: renamed 'cost' to 'usage'"
-    #         migrated=true
-    #     fi
-    # fi
+    # v0.7.0: Add spotify plugin (on second line)
+    if version_lt "$config_version" "0.7.0"; then
+        if add_section "spotify" "$GLOBAL_CONFIG"; then
+            success "  Migrated: added 'spotify' section (new plugin)"
+            migrated=true
+        fi
+    fi
 
     # ============================================================
 
+    # Update config version to current so migrations don't re-run
+    local current_version
+    current_version=$("$CLAUDE_DIR/prism" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "0.7.0")
+    set_config_version "$GLOBAL_CONFIG" "$current_version"
+
     if [ "$migrated" = false ]; then
         echo -e "  ${DIM}No migrations needed${RESET}"
+    else
+        echo -e "  ${DIM}Updated configVersion to $current_version${RESET}"
     fi
 }
 
@@ -250,11 +316,7 @@ run_migrations "$OLD_VERSION"
 # Create global config if it doesn't exist
 if [ ! -f "$GLOBAL_CONFIG" ]; then
     info "Creating global config..."
-    cat > "$GLOBAL_CONFIG" << 'EOF'
-{
-  "sections": ["dir", "model", "context", "usage", "git"]
-}
-EOF
+    "$CLAUDE_DIR/prism" init-global 2>/dev/null || true
     success "  Created $GLOBAL_CONFIG"
 fi
 

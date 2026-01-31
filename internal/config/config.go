@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/himattm/prism/internal/version"
 )
 
 // Config represents the Prism configuration
 type Config struct {
+	ConfigVersion     string         `json:"configVersion,omitempty"` // Tracks which migrations have been applied
 	Icon              string         `json:"icon,omitempty"`
 	Sections          any            `json:"sections,omitempty"` // Can be []string or [][]string
 	Plugins           map[string]any `json:"plugins,omitempty"`
@@ -22,9 +25,23 @@ func (c Config) GetAutocompactBuffer() float64 {
 	return *c.AutocompactBuffer
 }
 
-// DefaultSections returns the default section order
+// DefaultSectionLines returns the default multi-line section layout
+// This is the single source of truth for default sections
+func DefaultSectionLines() [][]string {
+	return [][]string{
+		{"dir", "model", "context", "usage", "git"},
+		{"spotify"},
+	}
+}
+
+// DefaultSections returns the default sections as a flat list (for backwards compatibility)
 func DefaultSections() []string {
-	return []string{"dir", "model", "context", "linesChanged", "usage", "git", "android_devices", "agent_task_queue"}
+	lines := DefaultSectionLines()
+	var result []string
+	for _, line := range lines {
+		result = append(result, line...)
+	}
+	return result
 }
 
 // Load reads and merges configuration from all config files
@@ -166,13 +183,13 @@ func (c Config) IsMultiline() bool {
 // GetAllSectionLines returns sections as lines (for multi-line support)
 func (c Config) GetAllSectionLines() [][]string {
 	if c.Sections == nil {
-		return [][]string{DefaultSections()}
+		return DefaultSectionLines()
 	}
 
 	switch v := c.Sections.(type) {
 	case []any:
 		if len(v) == 0 {
-			return [][]string{DefaultSections()}
+			return DefaultSectionLines()
 		}
 		// Check if nested
 		if _, ok := v[0].([]any); ok {
@@ -196,7 +213,7 @@ func (c Config) GetAllSectionLines() [][]string {
 		return [][]string{sections}
 	}
 
-	return [][]string{DefaultSections()}
+	return DefaultSectionLines()
 }
 
 // Init creates a new project config file
@@ -212,8 +229,9 @@ func Init(dir string) error {
 	}
 
 	cfg := Config{
-		Icon:     "💎",
-		Sections: []string{"dir", "model", "context", "usage", "git"},
+		ConfigVersion: version.Version,
+		Icon:          "💎",
+		Sections:      DefaultSectionLines(),
 	}
 
 	data, err := json.MarshalIndent(cfg, "", "  ")
@@ -238,7 +256,8 @@ func InitGlobal() error {
 	}
 
 	cfg := Config{
-		Sections: []string{"dir", "model", "context", "usage", "git"},
+		ConfigVersion: version.Version,
+		Sections:      DefaultSectionLines(),
 	}
 
 	data, err := json.MarshalIndent(cfg, "", "  ")
