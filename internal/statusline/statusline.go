@@ -401,11 +401,55 @@ func renderContextBar(pct int, colorPct int, showBuffer bool) string {
 func (sl *StatusLine) renderLinesChanged() string {
 	// ALWAYS use git diff stats - never use Claude's session stats
 	// This shows actual uncommitted changes in the working tree
-	added, removed := getGitDiffStats(sl.input.Workspace.ProjectDir)
+	gitDir := sl.getEffectiveGitDir()
+	added, removed := getGitDiffStats(gitDir)
 
 	return fmt.Sprintf("%s+%d%s %s-%d%s",
 		colors.Green, added, colors.Reset,
 		colors.Red, removed, colors.Reset)
+}
+
+// getEffectiveGitDir returns the best directory for git operations.
+// Tries ProjectDir first, falls back to finding git root from CurrentDir.
+func (sl *StatusLine) getEffectiveGitDir() string {
+	projectDir := sl.input.Workspace.ProjectDir
+	currentDir := sl.input.Workspace.CurrentDir
+
+	// Fast path: ProjectDir is set and is a git repo
+	if projectDir != "" {
+		if isGitDir(projectDir) {
+			return projectDir
+		}
+	}
+
+	// Fallback: find git root from CurrentDir
+	if currentDir == "" {
+		return ""
+	}
+
+	cacheKey := "git:effective:" + currentDir
+	if cached, ok := statusCache.Get(cacheKey); ok {
+		return cached // empty string cached means "not a git repo"
+	}
+
+	cmd := exec.Command("git", "--no-optional-locks", "rev-parse", "--show-toplevel")
+	cmd.Dir = currentDir
+	output, err := cmd.Output()
+	if err != nil {
+		statusCache.Set(cacheKey, "", cache.GitTTL)
+		return ""
+	}
+
+	gitRoot := strings.TrimSpace(string(output))
+	statusCache.Set(cacheKey, gitRoot, cache.GitTTL)
+	return gitRoot
+}
+
+// isGitDir checks if a directory is inside a git repository
+func isGitDir(dir string) bool {
+	cmd := exec.Command("git", "--no-optional-locks", "rev-parse", "--git-dir")
+	cmd.Dir = dir
+	return cmd.Run() == nil
 }
 
 func getGitDiffStats(projectDir string) (int, int) {

@@ -34,12 +34,12 @@ func (p *GitPlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookC
 }
 
 func (p *GitPlugin) Execute(ctx context.Context, input plugin.Input) (string, error) {
-	projectDir := input.Prism.ProjectDir
-	if projectDir == "" {
+	gitDir := p.getEffectiveGitDir(ctx, input)
+	if gitDir == "" {
 		return "", nil
 	}
 
-	cacheKey := fmt.Sprintf("git:%s", projectDir)
+	cacheKey := fmt.Sprintf("git:%s", gitDir)
 
 	// Check cache first
 	if p.cache != nil {
@@ -49,21 +49,21 @@ func (p *GitPlugin) Execute(ctx context.Context, input plugin.Input) (string, er
 	}
 
 	// Check if this is a git repo
-	if !isGitRepo(ctx, projectDir) {
+	if !isGitRepo(ctx, gitDir) {
 		return "", nil
 	}
 
 	// Get branch name
-	branch := getGitBranch(ctx, projectDir)
+	branch := getGitBranch(ctx, gitDir)
 	if branch == "" {
 		return "", nil
 	}
 
 	// Get dirty status
-	dirty := getGitDirty(ctx, projectDir)
+	dirty := getGitDirty(ctx, gitDir)
 
 	// Get upstream status
-	behind, ahead := getUpstreamStatus(ctx, projectDir)
+	behind, ahead := getUpstreamStatus(ctx, gitDir)
 
 	// Format output
 	yellow := input.Colors["yellow"]
@@ -93,6 +93,59 @@ func (p *GitPlugin) Execute(ctx context.Context, input plugin.Input) (string, er
 	}
 
 	return output, nil
+}
+
+// getEffectiveGitDir returns the best directory to use for git operations.
+// Tries ProjectDir first (fast path), falls back to finding git root from CurrentDir.
+func (p *GitPlugin) getEffectiveGitDir(ctx context.Context, input plugin.Input) string {
+	projectDir := input.Prism.ProjectDir
+	currentDir := input.Prism.CurrentDir
+
+	// Fast path: ProjectDir is a git repo
+	if projectDir != "" && isGitRepo(ctx, projectDir) {
+		return projectDir
+	}
+
+	// Fallback: find git root from CurrentDir
+	if currentDir == "" {
+		return ""
+	}
+
+	// Check cache for effective dir resolution
+	if p.cache != nil {
+		cacheKey := fmt.Sprintf("git:effective:%s", currentDir)
+		if cached, ok := p.cache.Get(cacheKey); ok {
+			if cached == "" {
+				return ""
+			}
+			return cached
+		}
+	}
+
+	gitRoot := findGitRootFromDir(ctx, currentDir)
+
+	// Cache the result (even empty, to avoid repeated lookups)
+	if p.cache != nil {
+		cacheKey := fmt.Sprintf("git:effective:%s", currentDir)
+		p.cache.Set(cacheKey, gitRoot, cache.GitTTL)
+	}
+
+	return gitRoot
+}
+
+// findGitRootFromDir runs git rev-parse --show-toplevel from the given directory
+// to find the git root. Returns empty string if not in a git repo.
+func findGitRootFromDir(ctx context.Context, dir string) string {
+	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-parse", "--show-toplevel")
+	cmd.Dir = dir
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	if err := cmd.Run(); err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(out.String())
 }
 
 func isGitRepo(ctx context.Context, dir string) bool {

@@ -865,3 +865,201 @@ func TestRenderContext_60PctShowsYellowWithBuffer(t *testing.T) {
 		t.Errorf("60%% with 22.5%% buffer should be YELLOW (proximity ~77%%), got: %s", result)
 	}
 }
+
+// TestGetEffectiveGitDir_ProjectDirIsGitRepo returns ProjectDir when it is a git repo
+func TestGetEffectiveGitDir_ProjectDirIsGitRepo(t *testing.T) {
+	tmpDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tmpDir)
+
+	sl := &StatusLine{
+		input: Input{
+			Workspace: WorkspaceInfo{
+				ProjectDir: tmpDir,
+				CurrentDir: tmpDir,
+			},
+		},
+	}
+
+	result := sl.getEffectiveGitDir()
+	if result != tmpDir {
+		t.Errorf("expected ProjectDir %s, got %s", tmpDir, result)
+	}
+}
+
+// TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDir falls back to CurrentDir's git root
+func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDir(t *testing.T) {
+	// Create a non-git parent directory
+	parentDir, err := os.MkdirTemp("", "prism-test-parent-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(parentDir)
+
+	// Create a git repo as a subdirectory
+	gitRepoDir := filepath.Join(parentDir, "my-repo")
+	if err := os.MkdirAll(gitRepoDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = gitRepoDir
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("failed to run %v: %v", args, err)
+		}
+	}
+
+	// Create initial commit
+	readmeFile := filepath.Join(gitRepoDir, "README.md")
+	os.WriteFile(readmeFile, []byte("# Test\n"), 0644)
+	cmd := exec.Command("git", "add", "README.md")
+	cmd.Dir = gitRepoDir
+	cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Initial commit")
+	cmd.Dir = gitRepoDir
+	cmd.Run()
+
+	sl := &StatusLine{
+		input: Input{
+			Workspace: WorkspaceInfo{
+				ProjectDir: parentDir,  // Non-git directory
+				CurrentDir: gitRepoDir, // Git repo
+			},
+		},
+	}
+
+	result := sl.getEffectiveGitDir()
+	// Resolve symlinks for comparison (macOS /var -> /private/var)
+	expectedDir, _ := filepath.EvalSymlinks(gitRepoDir)
+	if result != expectedDir {
+		t.Errorf("expected git root %s, got %s", expectedDir, result)
+	}
+}
+
+// TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDirSubdir finds git root from subdirectory
+func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDirSubdir(t *testing.T) {
+	// Create a non-git parent directory
+	parentDir, err := os.MkdirTemp("", "prism-test-parent-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(parentDir)
+
+	// Create a git repo as a subdirectory
+	gitRepoDir := filepath.Join(parentDir, "my-repo")
+	if err := os.MkdirAll(gitRepoDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = gitRepoDir
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("failed to run %v: %v", args, err)
+		}
+	}
+
+	// Create initial commit
+	readmeFile := filepath.Join(gitRepoDir, "README.md")
+	os.WriteFile(readmeFile, []byte("# Test\n"), 0644)
+	cmd := exec.Command("git", "add", "README.md")
+	cmd.Dir = gitRepoDir
+	cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Initial commit")
+	cmd.Dir = gitRepoDir
+	cmd.Run()
+
+	// Create a subdirectory inside the git repo
+	subDir := filepath.Join(gitRepoDir, "src", "components")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	sl := &StatusLine{
+		input: Input{
+			Workspace: WorkspaceInfo{
+				ProjectDir: parentDir, // Non-git directory
+				CurrentDir: subDir,    // Subdirectory inside a git repo
+			},
+		},
+	}
+
+	result := sl.getEffectiveGitDir()
+	// Resolve symlinks for comparison (macOS /var -> /private/var)
+	expectedDir, _ := filepath.EvalSymlinks(gitRepoDir)
+	if result != expectedDir {
+		t.Errorf("expected git root %s, got %s", expectedDir, result)
+	}
+}
+
+// TestRenderLinesChanged_NonGitProjectDir_GitCurrentDir shows diff stats from CurrentDir's repo
+func TestRenderLinesChanged_NonGitProjectDir_GitCurrentDir(t *testing.T) {
+	// Create a non-git parent directory
+	parentDir, err := os.MkdirTemp("", "prism-test-parent-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(parentDir)
+
+	// Create a git repo as a subdirectory
+	gitRepoDir := filepath.Join(parentDir, "my-repo")
+	if err := os.MkdirAll(gitRepoDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = gitRepoDir
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("failed to run %v: %v", args, err)
+		}
+	}
+
+	// Create initial commit
+	readmeFile := filepath.Join(gitRepoDir, "README.md")
+	os.WriteFile(readmeFile, []byte("# Test\n"), 0644)
+	cmd := exec.Command("git", "add", "README.md")
+	cmd.Dir = gitRepoDir
+	cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "Initial commit")
+	cmd.Dir = gitRepoDir
+	cmd.Run()
+
+	// Create a staged change so diff stats are non-zero
+	newFile := filepath.Join(gitRepoDir, "new.txt")
+	os.WriteFile(newFile, []byte("line1\nline2\nline3\n"), 0644)
+	cmd = exec.Command("git", "add", "new.txt")
+	cmd.Dir = gitRepoDir
+	cmd.Run()
+
+	sl := &StatusLine{
+		input: Input{
+			Workspace: WorkspaceInfo{
+				ProjectDir: parentDir,  // Non-git directory
+				CurrentDir: gitRepoDir, // Git repo with changes
+			},
+		},
+	}
+
+	result := sl.renderLinesChanged()
+
+	// Should show +3 -0 from the git repo, not +0 -0
+	if !strings.Contains(result, "+3") {
+		t.Errorf("expected +3 for staged lines in CurrentDir repo, got: %s", result)
+	}
+}
