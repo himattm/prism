@@ -297,12 +297,13 @@ func (sl *StatusLine) renderContext() string {
 		if pct < 0 {
 			pct = 0
 		}
-		return renderContextBar(pct, bufferPct > 0)
+		colorPct := compactionProximity(pct, bufferPct)
+		return renderContextBar(pct, colorPct, bufferPct > 0)
 	}
 
 	// Fall back to legacy calculation for older Claude Code versions
 	pct := sl.calculateContextPctLegacy()
-	return renderContextBar(pct, bufferPct > 0)
+	return renderContextBar(pct, pct, bufferPct > 0)
 }
 
 func (sl *StatusLine) calculateContextPctLegacy() int {
@@ -330,7 +331,20 @@ func (sl *StatusLine) calculateContextPctLegacy() int {
 	return pct
 }
 
-func renderContextBar(pct int, showBuffer bool) string {
+// compactionProximity scales raw usage percentage to reflect how close it is
+// to the autocompact trigger point. When bufferPct is 0 (disabled), returns rawPct unchanged.
+func compactionProximity(rawPct int, bufferPct float64) int {
+	if bufferPct <= 0 {
+		return rawPct
+	}
+	proximity := float64(rawPct) * 100.0 / (100.0 - bufferPct)
+	if proximity > 100 {
+		return 100
+	}
+	return int(proximity)
+}
+
+func renderContextBar(pct int, colorPct int, showBuffer bool) string {
 	// 10-char bar: ████░░░░▒▒ (with buffer) or ████░░░░░░ (without)
 	// No end caps for a cleaner look
 	const barLen = 10
@@ -347,9 +361,9 @@ func renderContextBar(pct int, showBuffer bool) string {
 	// When colored, the entire bar is that color for uniformity
 	var barColor string
 	switch {
-	case pct >= 90:
+	case colorPct >= 90:
 		barColor = colors.Red
-	case pct >= 70:
+	case colorPct >= 70:
 		barColor = colors.Yellow
 	default:
 		barColor = "" // White/default

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/himattm/prism/internal/colors"
 	"github.com/himattm/prism/internal/config"
 )
 
@@ -294,7 +295,7 @@ func TestNew_CreatesStatusLine(t *testing.T) {
 
 // TestRenderContextBar_NoBrackets verifies brackets were removed
 func TestRenderContextBar_NoBrackets(t *testing.T) {
-	result := renderContextBar(50, false)
+	result := renderContextBar(50, 50, false)
 
 	if strings.Contains(result, "[") || strings.Contains(result, "]") {
 		t.Errorf("context bar should not contain brackets: %s", result)
@@ -320,7 +321,7 @@ func TestRenderContextBar_Percentages(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := renderContextBar(tt.pct, false)
+		result := renderContextBar(tt.pct, tt.pct, false)
 		fillCount := strings.Count(result, "█")
 		if fillCount != tt.expectedFill {
 			t.Errorf("at %d%%, expected %d filled blocks, got %d: %s",
@@ -332,13 +333,13 @@ func TestRenderContextBar_Percentages(t *testing.T) {
 // TestRenderContextBar_BufferZone verifies buffer zone rendering
 func TestRenderContextBar_BufferZone(t *testing.T) {
 	// With buffer enabled, should have ▒ characters at the end
-	withBuffer := renderContextBar(50, true)
+	withBuffer := renderContextBar(50, 50, true)
 	if !strings.Contains(withBuffer, "▒") {
 		t.Errorf("buffer zone should show ▒ when enabled: %s", withBuffer)
 	}
 
 	// Without buffer, should not have ▒ characters
-	withoutBuffer := renderContextBar(50, false)
+	withoutBuffer := renderContextBar(50, 50, false)
 	if strings.Contains(withoutBuffer, "▒") {
 		t.Errorf("buffer zone should not show ▒ when disabled: %s", withoutBuffer)
 	}
@@ -760,5 +761,104 @@ func TestRenderDir_CurrentDirInWorktreeSubdir(t *testing.T) {
 	}
 	if !strings.Contains(result, "/src") {
 		t.Errorf("should show subdir '/src', got: %s", result)
+	}
+}
+
+func TestCompactionProximity(t *testing.T) {
+	tests := []struct {
+		name      string
+		rawPct    int
+		bufferPct float64
+		expected  int
+	}{
+		{"81% raw with 22.5% buffer", 81, 22.5, 100},   // 81 * 100 / 77.5 = 104.5 → capped at 100
+		{"60% raw with 22.5% buffer", 60, 22.5, 77},    // 60 * 100 / 77.5 = 77.4
+		{"30% raw with 22.5% buffer", 30, 22.5, 38},    // 30 * 100 / 77.5 = 38.7
+		{"81% raw with 0% buffer", 81, 0, 81},          // disabled, returns raw
+		{"95% raw with 0% buffer", 95, 0, 95},          // disabled, returns raw
+		{"0% raw with 22.5% buffer", 0, 22.5, 0},       // 0 stays 0
+		{"100% raw with 22.5% buffer", 100, 22.5, 100}, // capped at 100
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := compactionProximity(tt.rawPct, tt.bufferPct)
+			if result != tt.expected {
+				t.Errorf("compactionProximity(%d, %.1f) = %d, want %d",
+					tt.rawPct, tt.bufferPct, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRenderContext_BugScenario_81PctShowsRedColor(t *testing.T) {
+	// The bug: 81% raw with 22.5% buffer should show RED (proximity ~104%)
+	// Previously showed yellow because color was based on raw 81%
+	sl := &StatusLine{
+		input: Input{
+			Context: ContextInfo{
+				UsedPercentage: 81.0,
+			},
+		},
+		config: config.Config{}, // Default 22.5% buffer
+	}
+
+	result := sl.renderContext()
+
+	if !strings.Contains(result, "81%") {
+		t.Errorf("should display raw 81%%, got: %s", result)
+	}
+	// Should be red (proximity = 81 * 100 / 77.5 = 104.5, capped at 100, >= 90)
+	if !strings.Contains(result, colors.Red) {
+		t.Errorf("81%% with 22.5%% buffer should be RED (proximity ~104%%), got: %s", result)
+	}
+}
+
+func TestRenderContext_BufferDisabled_YellowAt81(t *testing.T) {
+	// With buffer disabled (0%), 81% should be yellow (70 <= 81 < 90)
+	zero := 0.0
+	sl := &StatusLine{
+		input: Input{
+			Context: ContextInfo{
+				UsedPercentage: 81.0,
+			},
+		},
+		config: config.Config{
+			AutocompactBuffer: &zero,
+		},
+	}
+
+	result := sl.renderContext()
+
+	if !strings.Contains(result, "81%") {
+		t.Errorf("should display raw 81%%, got: %s", result)
+	}
+	// Should be yellow, not red (buffer disabled, raw 81% >= 70 but < 90)
+	if !strings.Contains(result, colors.Yellow) {
+		t.Errorf("81%% with buffer disabled should be YELLOW, got: %s", result)
+	}
+	if strings.Contains(result, colors.Red) {
+		t.Errorf("81%% with buffer disabled should NOT be red, got: %s", result)
+	}
+}
+
+func TestRenderContext_60PctShowsYellowWithBuffer(t *testing.T) {
+	// 60% raw with 22.5% buffer → proximity ~77% → yellow
+	sl := &StatusLine{
+		input: Input{
+			Context: ContextInfo{
+				UsedPercentage: 60.0,
+			},
+		},
+		config: config.Config{}, // Default 22.5% buffer
+	}
+
+	result := sl.renderContext()
+
+	if !strings.Contains(result, "60%") {
+		t.Errorf("should display raw 60%%, got: %s", result)
+	}
+	if !strings.Contains(result, colors.Yellow) {
+		t.Errorf("60%% with 22.5%% buffer should be YELLOW (proximity ~77%%), got: %s", result)
 	}
 }
