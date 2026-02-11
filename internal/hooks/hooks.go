@@ -36,6 +36,13 @@ func NewManager() *Manager {
 
 // logHook writes hook invocation details to the log file
 func (m *Manager) logHook(hookType string, input Input, rawInput []byte) {
+	const maxLogSize = 10 * 1024 * 1024 // 10 MB
+
+	// Rotate log if it exceeds max size
+	if info, err := os.Stat(m.logFile); err == nil && info.Size() > maxLogSize {
+		os.Rename(m.logFile, m.logFile+".old")
+	}
+
 	f, err := os.OpenFile(m.logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return // Silently fail - don't break hooks for logging
