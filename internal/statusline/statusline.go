@@ -13,6 +13,7 @@ import (
 	"github.com/himattm/prism/internal/cache"
 	"github.com/himattm/prism/internal/colors"
 	"github.com/himattm/prism/internal/config"
+	"github.com/himattm/prism/internal/git"
 	"github.com/himattm/prism/internal/plugin"
 	"github.com/himattm/prism/internal/plugins"
 	"github.com/himattm/prism/internal/version"
@@ -401,11 +402,23 @@ func renderContextBar(pct int, colorPct int, showBuffer bool) string {
 func (sl *StatusLine) renderLinesChanged() string {
 	// ALWAYS use git diff stats - never use Claude's session stats
 	// This shows actual uncommitted changes in the working tree
-	added, removed := getGitDiffStats(sl.input.Workspace.ProjectDir)
+	gitDir := sl.getEffectiveGitDir()
+	added, removed := getGitDiffStats(gitDir)
 
 	return fmt.Sprintf("%s+%d%s %s-%d%s",
 		colors.Green, added, colors.Reset,
 		colors.Red, removed, colors.Reset)
+}
+
+// getEffectiveGitDir returns the best directory for git operations.
+// Tries ProjectDir first, falls back to finding git root from CurrentDir.
+func (sl *StatusLine) getEffectiveGitDir() string {
+	return git.EffectiveDir(
+		context.Background(),
+		sl.input.Workspace.ProjectDir,
+		sl.input.Workspace.CurrentDir,
+		statusCache,
+	)
 }
 
 func getGitDiffStats(projectDir string) (int, int) {

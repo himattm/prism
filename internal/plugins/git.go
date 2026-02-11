@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/himattm/prism/internal/cache"
+	"github.com/himattm/prism/internal/git"
 	"github.com/himattm/prism/internal/plugin"
 )
 
@@ -34,12 +35,12 @@ func (p *GitPlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookC
 }
 
 func (p *GitPlugin) Execute(ctx context.Context, input plugin.Input) (string, error) {
-	projectDir := input.Prism.ProjectDir
-	if projectDir == "" {
+	gitDir := p.getEffectiveGitDir(ctx, input)
+	if gitDir == "" {
 		return "", nil
 	}
 
-	cacheKey := fmt.Sprintf("git:%s", projectDir)
+	cacheKey := fmt.Sprintf("git:%s", gitDir)
 
 	// Check cache first
 	if p.cache != nil {
@@ -48,22 +49,17 @@ func (p *GitPlugin) Execute(ctx context.Context, input plugin.Input) (string, er
 		}
 	}
 
-	// Check if this is a git repo
-	if !isGitRepo(ctx, projectDir) {
-		return "", nil
-	}
-
 	// Get branch name
-	branch := getGitBranch(ctx, projectDir)
+	branch := getGitBranch(ctx, gitDir)
 	if branch == "" {
 		return "", nil
 	}
 
 	// Get dirty status
-	dirty := getGitDirty(ctx, projectDir)
+	dirty := getGitDirty(ctx, gitDir)
 
 	// Get upstream status
-	behind, ahead := getUpstreamStatus(ctx, projectDir)
+	behind, ahead := getUpstreamStatus(ctx, gitDir)
 
 	// Format output
 	yellow := input.Colors["yellow"]
@@ -95,10 +91,10 @@ func (p *GitPlugin) Execute(ctx context.Context, input plugin.Input) (string, er
 	return output, nil
 }
 
-func isGitRepo(ctx context.Context, dir string) bool {
-	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-parse", "--git-dir")
-	cmd.Dir = dir
-	return cmd.Run() == nil
+// getEffectiveGitDir returns the best directory to use for git operations.
+// Tries ProjectDir first (fast path), falls back to finding git root from CurrentDir.
+func (p *GitPlugin) getEffectiveGitDir(ctx context.Context, input plugin.Input) string {
+	return git.EffectiveDir(ctx, input.Prism.ProjectDir, input.Prism.CurrentDir, p.cache)
 }
 
 func getGitBranch(ctx context.Context, dir string) string {
