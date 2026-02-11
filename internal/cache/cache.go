@@ -46,9 +46,30 @@ func (c *Cache) Set(key, value string, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if len(c.items) > 50 {
+		c.cleanExpired()
+	}
+
 	c.items[key] = cacheItem{
 		value:     value,
 		expiresAt: time.Now().Add(ttl),
+	}
+}
+
+// CleanExpired removes all expired entries from the cache
+func (c *Cache) CleanExpired() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cleanExpired()
+}
+
+// cleanExpired removes expired entries (must be called with lock held)
+func (c *Cache) cleanExpired() {
+	now := time.Now()
+	for k, v := range c.items {
+		if now.After(v.expiresAt) {
+			delete(c.items, k)
+		}
 	}
 }
 

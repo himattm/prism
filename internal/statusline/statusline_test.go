@@ -916,13 +916,19 @@ func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDir(t *testing.T) {
 
 	// Create initial commit
 	readmeFile := filepath.Join(gitRepoDir, "README.md")
-	os.WriteFile(readmeFile, []byte("# Test\n"), 0644)
+	if err := os.WriteFile(readmeFile, []byte("# Test\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 	cmd := exec.Command("git", "add", "README.md")
 	cmd.Dir = gitRepoDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git add: %v", err)
+	}
 	cmd = exec.Command("git", "commit", "-m", "Initial commit")
 	cmd.Dir = gitRepoDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git commit: %v", err)
+	}
 
 	sl := &StatusLine{
 		input: Input{
@@ -935,7 +941,10 @@ func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDir(t *testing.T) {
 
 	result := sl.getEffectiveGitDir()
 	// Resolve symlinks for comparison (macOS /var -> /private/var)
-	expectedDir, _ := filepath.EvalSymlinks(gitRepoDir)
+	expectedDir, err := filepath.EvalSymlinks(gitRepoDir)
+	if err != nil {
+		t.Fatalf("failed to eval symlinks: %v", err)
+	}
 	if result != expectedDir {
 		t.Errorf("expected git root %s, got %s", expectedDir, result)
 	}
@@ -971,13 +980,19 @@ func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDirSubdir(t *testing.T) {
 
 	// Create initial commit
 	readmeFile := filepath.Join(gitRepoDir, "README.md")
-	os.WriteFile(readmeFile, []byte("# Test\n"), 0644)
+	if err := os.WriteFile(readmeFile, []byte("# Test\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 	cmd := exec.Command("git", "add", "README.md")
 	cmd.Dir = gitRepoDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git add: %v", err)
+	}
 	cmd = exec.Command("git", "commit", "-m", "Initial commit")
 	cmd.Dir = gitRepoDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git commit: %v", err)
+	}
 
 	// Create a subdirectory inside the git repo
 	subDir := filepath.Join(gitRepoDir, "src", "components")
@@ -996,7 +1011,10 @@ func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDirSubdir(t *testing.T) {
 
 	result := sl.getEffectiveGitDir()
 	// Resolve symlinks for comparison (macOS /var -> /private/var)
-	expectedDir, _ := filepath.EvalSymlinks(gitRepoDir)
+	expectedDir, err := filepath.EvalSymlinks(gitRepoDir)
+	if err != nil {
+		t.Fatalf("failed to eval symlinks: %v", err)
+	}
 	if result != expectedDir {
 		t.Errorf("expected git root %s, got %s", expectedDir, result)
 	}
@@ -1032,20 +1050,30 @@ func TestRenderLinesChanged_NonGitProjectDir_GitCurrentDir(t *testing.T) {
 
 	// Create initial commit
 	readmeFile := filepath.Join(gitRepoDir, "README.md")
-	os.WriteFile(readmeFile, []byte("# Test\n"), 0644)
+	if err := os.WriteFile(readmeFile, []byte("# Test\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 	cmd := exec.Command("git", "add", "README.md")
 	cmd.Dir = gitRepoDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git add: %v", err)
+	}
 	cmd = exec.Command("git", "commit", "-m", "Initial commit")
 	cmd.Dir = gitRepoDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git commit: %v", err)
+	}
 
 	// Create a staged change so diff stats are non-zero
 	newFile := filepath.Join(gitRepoDir, "new.txt")
-	os.WriteFile(newFile, []byte("line1\nline2\nline3\n"), 0644)
+	if err := os.WriteFile(newFile, []byte("line1\nline2\nline3\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 	cmd = exec.Command("git", "add", "new.txt")
 	cmd.Dir = gitRepoDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git add: %v", err)
+	}
 
 	sl := &StatusLine{
 		input: Input{

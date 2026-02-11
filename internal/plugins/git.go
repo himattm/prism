@@ -48,11 +48,6 @@ func (p *GitPlugin) Execute(ctx context.Context, input plugin.Input) (string, er
 		}
 	}
 
-	// Check if this is a git repo
-	if !isGitRepo(ctx, gitDir) {
-		return "", nil
-	}
-
 	// Get branch name
 	branch := getGitBranch(ctx, gitDir)
 	if branch == "" {

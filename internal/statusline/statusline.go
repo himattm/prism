@@ -417,7 +417,7 @@ func (sl *StatusLine) getEffectiveGitDir() string {
 
 	// Fast path: ProjectDir is set and is a git repo
 	if projectDir != "" {
-		if isGitDir(projectDir) {
+		if isGitRepo(projectDir) {
 			return projectDir
 		}
 	}
@@ -432,7 +432,9 @@ func (sl *StatusLine) getEffectiveGitDir() string {
 		return cached // empty string cached means "not a git repo"
 	}
 
-	cmd := exec.Command("git", "--no-optional-locks", "rev-parse", "--show-toplevel")
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-parse", "--show-toplevel")
 	cmd.Dir = currentDir
 	output, err := cmd.Output()
 	if err != nil {
@@ -445,9 +447,11 @@ func (sl *StatusLine) getEffectiveGitDir() string {
 	return gitRoot
 }
 
-// isGitDir checks if a directory is inside a git repository
-func isGitDir(dir string) bool {
-	cmd := exec.Command("git", "--no-optional-locks", "rev-parse", "--git-dir")
+// isGitRepo checks if a directory is inside a git repository
+func isGitRepo(dir string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-parse", "--git-dir")
 	cmd.Dir = dir
 	return cmd.Run() == nil
 }
