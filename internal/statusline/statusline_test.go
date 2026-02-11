@@ -229,6 +229,45 @@ func TestRenderLinesChanged_OutputFormat(t *testing.T) {
 	}
 }
 
+// setupTestGitRepoAt initializes a git repository at the given directory.
+// The directory must already exist. Returns the directory path.
+func setupTestGitRepoAt(t *testing.T, dir string) string {
+	t.Helper()
+
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("failed to run %v: %v", args, err)
+		}
+	}
+
+	// Create initial commit
+	readmeFile := filepath.Join(dir, "README.md")
+	if err := os.WriteFile(readmeFile, []byte("# Test\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	cmd := exec.Command("git", "add", "README.md")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git add: %v", err)
+	}
+
+	cmd = exec.Command("git", "commit", "-m", "Initial commit")
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create initial commit: %v", err)
+	}
+
+	return dir
+}
+
 // setupTestGitRepo creates a temporary git repository for testing
 func setupTestGitRepo(t *testing.T) string {
 	t.Helper()
@@ -238,41 +277,7 @@ func setupTestGitRepo(t *testing.T) string {
 		t.Fatal(err)
 	}
 
-	// Initialize git repo
-	cmds := [][]string{
-		{"git", "init"},
-		{"git", "config", "user.email", "test@test.com"},
-		{"git", "config", "user.name", "Test"},
-	}
-
-	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Dir = tmpDir
-		if err := cmd.Run(); err != nil {
-			os.RemoveAll(tmpDir)
-			t.Fatalf("failed to run %v: %v", args, err)
-		}
-	}
-
-	// Create initial commit
-	readmeFile := filepath.Join(tmpDir, "README.md")
-	if err := os.WriteFile(readmeFile, []byte("# Test\n"), 0644); err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-
-	cmd := exec.Command("git", "add", "README.md")
-	cmd.Dir = tmpDir
-	cmd.Run()
-
-	cmd = exec.Command("git", "commit", "-m", "Initial commit")
-	cmd.Dir = tmpDir
-	if err := cmd.Run(); err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatalf("failed to create initial commit: %v", err)
-	}
-
-	return tmpDir
+	return setupTestGitRepoAt(t, tmpDir)
 }
 
 // TestNew_CreatesStatusLine verifies the constructor works
@@ -888,59 +893,28 @@ func TestGetEffectiveGitDir_ProjectDirIsGitRepo(t *testing.T) {
 
 // TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDir falls back to CurrentDir's git root
 func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDir(t *testing.T) {
-	// Create a non-git parent directory
 	parentDir, err := os.MkdirTemp("", "prism-test-parent-*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(parentDir)
 
-	// Create a git repo as a subdirectory
 	gitRepoDir := filepath.Join(parentDir, "my-repo")
 	if err := os.MkdirAll(gitRepoDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-
-	cmds := [][]string{
-		{"git", "init"},
-		{"git", "config", "user.email", "test@test.com"},
-		{"git", "config", "user.name", "Test"},
-	}
-	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Dir = gitRepoDir
-		if err := cmd.Run(); err != nil {
-			t.Fatalf("failed to run %v: %v", args, err)
-		}
-	}
-
-	// Create initial commit
-	readmeFile := filepath.Join(gitRepoDir, "README.md")
-	if err := os.WriteFile(readmeFile, []byte("# Test\n"), 0644); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
-	cmd := exec.Command("git", "add", "README.md")
-	cmd.Dir = gitRepoDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git add: %v", err)
-	}
-	cmd = exec.Command("git", "commit", "-m", "Initial commit")
-	cmd.Dir = gitRepoDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git commit: %v", err)
-	}
+	setupTestGitRepoAt(t, gitRepoDir)
 
 	sl := &StatusLine{
 		input: Input{
 			Workspace: WorkspaceInfo{
-				ProjectDir: parentDir,  // Non-git directory
-				CurrentDir: gitRepoDir, // Git repo
+				ProjectDir: parentDir,
+				CurrentDir: gitRepoDir,
 			},
 		},
 	}
 
 	result := sl.getEffectiveGitDir()
-	// Resolve symlinks for comparison (macOS /var -> /private/var)
 	expectedDir, err := filepath.EvalSymlinks(gitRepoDir)
 	if err != nil {
 		t.Fatalf("failed to eval symlinks: %v", err)
@@ -952,47 +926,17 @@ func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDir(t *testing.T) {
 
 // TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDirSubdir finds git root from subdirectory
 func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDirSubdir(t *testing.T) {
-	// Create a non-git parent directory
 	parentDir, err := os.MkdirTemp("", "prism-test-parent-*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(parentDir)
 
-	// Create a git repo as a subdirectory
 	gitRepoDir := filepath.Join(parentDir, "my-repo")
 	if err := os.MkdirAll(gitRepoDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-
-	cmds := [][]string{
-		{"git", "init"},
-		{"git", "config", "user.email", "test@test.com"},
-		{"git", "config", "user.name", "Test"},
-	}
-	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Dir = gitRepoDir
-		if err := cmd.Run(); err != nil {
-			t.Fatalf("failed to run %v: %v", args, err)
-		}
-	}
-
-	// Create initial commit
-	readmeFile := filepath.Join(gitRepoDir, "README.md")
-	if err := os.WriteFile(readmeFile, []byte("# Test\n"), 0644); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
-	cmd := exec.Command("git", "add", "README.md")
-	cmd.Dir = gitRepoDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git add: %v", err)
-	}
-	cmd = exec.Command("git", "commit", "-m", "Initial commit")
-	cmd.Dir = gitRepoDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git commit: %v", err)
-	}
+	setupTestGitRepoAt(t, gitRepoDir)
 
 	// Create a subdirectory inside the git repo
 	subDir := filepath.Join(gitRepoDir, "src", "components")
@@ -1003,14 +947,13 @@ func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDirSubdir(t *testing.T) {
 	sl := &StatusLine{
 		input: Input{
 			Workspace: WorkspaceInfo{
-				ProjectDir: parentDir, // Non-git directory
-				CurrentDir: subDir,    // Subdirectory inside a git repo
+				ProjectDir: parentDir,
+				CurrentDir: subDir,
 			},
 		},
 	}
 
 	result := sl.getEffectiveGitDir()
-	// Resolve symlinks for comparison (macOS /var -> /private/var)
 	expectedDir, err := filepath.EvalSymlinks(gitRepoDir)
 	if err != nil {
 		t.Fatalf("failed to eval symlinks: %v", err)
@@ -1022,54 +965,24 @@ func TestGetEffectiveGitDir_NonGitProjectDir_GitCurrentDirSubdir(t *testing.T) {
 
 // TestRenderLinesChanged_NonGitProjectDir_GitCurrentDir shows diff stats from CurrentDir's repo
 func TestRenderLinesChanged_NonGitProjectDir_GitCurrentDir(t *testing.T) {
-	// Create a non-git parent directory
 	parentDir, err := os.MkdirTemp("", "prism-test-parent-*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(parentDir)
 
-	// Create a git repo as a subdirectory
 	gitRepoDir := filepath.Join(parentDir, "my-repo")
 	if err := os.MkdirAll(gitRepoDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-
-	cmds := [][]string{
-		{"git", "init"},
-		{"git", "config", "user.email", "test@test.com"},
-		{"git", "config", "user.name", "Test"},
-	}
-	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Dir = gitRepoDir
-		if err := cmd.Run(); err != nil {
-			t.Fatalf("failed to run %v: %v", args, err)
-		}
-	}
-
-	// Create initial commit
-	readmeFile := filepath.Join(gitRepoDir, "README.md")
-	if err := os.WriteFile(readmeFile, []byte("# Test\n"), 0644); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
-	cmd := exec.Command("git", "add", "README.md")
-	cmd.Dir = gitRepoDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git add: %v", err)
-	}
-	cmd = exec.Command("git", "commit", "-m", "Initial commit")
-	cmd.Dir = gitRepoDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("failed to git commit: %v", err)
-	}
+	setupTestGitRepoAt(t, gitRepoDir)
 
 	// Create a staged change so diff stats are non-zero
 	newFile := filepath.Join(gitRepoDir, "new.txt")
 	if err := os.WriteFile(newFile, []byte("line1\nline2\nline3\n"), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
-	cmd = exec.Command("git", "add", "new.txt")
+	cmd := exec.Command("git", "add", "new.txt")
 	cmd.Dir = gitRepoDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to git add: %v", err)
@@ -1078,8 +991,8 @@ func TestRenderLinesChanged_NonGitProjectDir_GitCurrentDir(t *testing.T) {
 	sl := &StatusLine{
 		input: Input{
 			Workspace: WorkspaceInfo{
-				ProjectDir: parentDir,  // Non-git directory
-				CurrentDir: gitRepoDir, // Git repo with changes
+				ProjectDir: parentDir,
+				CurrentDir: gitRepoDir,
 			},
 		},
 	}

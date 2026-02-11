@@ -13,6 +13,7 @@ import (
 	"github.com/himattm/prism/internal/cache"
 	"github.com/himattm/prism/internal/colors"
 	"github.com/himattm/prism/internal/config"
+	"github.com/himattm/prism/internal/git"
 	"github.com/himattm/prism/internal/plugin"
 	"github.com/himattm/prism/internal/plugins"
 	"github.com/himattm/prism/internal/version"
@@ -412,48 +413,12 @@ func (sl *StatusLine) renderLinesChanged() string {
 // getEffectiveGitDir returns the best directory for git operations.
 // Tries ProjectDir first, falls back to finding git root from CurrentDir.
 func (sl *StatusLine) getEffectiveGitDir() string {
-	projectDir := sl.input.Workspace.ProjectDir
-	currentDir := sl.input.Workspace.CurrentDir
-
-	// Fast path: ProjectDir is set and is a git repo
-	if projectDir != "" {
-		if isGitRepo(projectDir) {
-			return projectDir
-		}
-	}
-
-	// Fallback: find git root from CurrentDir
-	if currentDir == "" {
-		return ""
-	}
-
-	cacheKey := "git:effective:" + currentDir
-	if cached, ok := statusCache.Get(cacheKey); ok {
-		return cached // empty string cached means "not a git repo"
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-parse", "--show-toplevel")
-	cmd.Dir = currentDir
-	output, err := cmd.Output()
-	if err != nil {
-		statusCache.Set(cacheKey, "", cache.GitTTL)
-		return ""
-	}
-
-	gitRoot := strings.TrimSpace(string(output))
-	statusCache.Set(cacheKey, gitRoot, cache.GitTTL)
-	return gitRoot
-}
-
-// isGitRepo checks if a directory is inside a git repository
-func isGitRepo(dir string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-parse", "--git-dir")
-	cmd.Dir = dir
-	return cmd.Run() == nil
+	return git.EffectiveDir(
+		context.Background(),
+		sl.input.Workspace.ProjectDir,
+		sl.input.Workspace.CurrentDir,
+		statusCache,
+	)
 }
 
 func getGitDiffStats(projectDir string) (int, int) {

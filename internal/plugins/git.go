@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/himattm/prism/internal/cache"
+	"github.com/himattm/prism/internal/git"
 	"github.com/himattm/prism/internal/plugin"
 )
 
@@ -93,60 +94,7 @@ func (p *GitPlugin) Execute(ctx context.Context, input plugin.Input) (string, er
 // getEffectiveGitDir returns the best directory to use for git operations.
 // Tries ProjectDir first (fast path), falls back to finding git root from CurrentDir.
 func (p *GitPlugin) getEffectiveGitDir(ctx context.Context, input plugin.Input) string {
-	projectDir := input.Prism.ProjectDir
-	currentDir := input.Prism.CurrentDir
-
-	// Fast path: ProjectDir is a git repo
-	if projectDir != "" && isGitRepo(ctx, projectDir) {
-		return projectDir
-	}
-
-	// Fallback: find git root from CurrentDir
-	if currentDir == "" {
-		return ""
-	}
-
-	// Check cache for effective dir resolution
-	if p.cache != nil {
-		cacheKey := fmt.Sprintf("git:effective:%s", currentDir)
-		if cached, ok := p.cache.Get(cacheKey); ok {
-			if cached == "" {
-				return ""
-			}
-			return cached
-		}
-	}
-
-	gitRoot := findGitRootFromDir(ctx, currentDir)
-
-	// Cache the result (even empty, to avoid repeated lookups)
-	if p.cache != nil {
-		cacheKey := fmt.Sprintf("git:effective:%s", currentDir)
-		p.cache.Set(cacheKey, gitRoot, cache.GitTTL)
-	}
-
-	return gitRoot
-}
-
-// findGitRootFromDir runs git rev-parse --show-toplevel from the given directory
-// to find the git root. Returns empty string if not in a git repo.
-func findGitRootFromDir(ctx context.Context, dir string) string {
-	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-parse", "--show-toplevel")
-	cmd.Dir = dir
-	var out bytes.Buffer
-	cmd.Stdout = &out
-
-	if err := cmd.Run(); err != nil {
-		return ""
-	}
-
-	return strings.TrimSpace(out.String())
-}
-
-func isGitRepo(ctx context.Context, dir string) bool {
-	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-parse", "--git-dir")
-	cmd.Dir = dir
-	return cmd.Run() == nil
+	return git.EffectiveDir(ctx, input.Prism.ProjectDir, input.Prism.CurrentDir, p.cache)
 }
 
 func getGitBranch(ctx context.Context, dir string) string {
