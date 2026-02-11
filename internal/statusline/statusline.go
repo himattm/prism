@@ -337,6 +337,9 @@ func compactionProximity(rawPct int, bufferPct float64) int {
 	if bufferPct <= 0 {
 		return rawPct
 	}
+	if bufferPct >= 100 {
+		return 100
+	}
 	proximity := float64(rawPct) * 100.0 / (100.0 - bufferPct)
 	if proximity > 100 {
 		return 100

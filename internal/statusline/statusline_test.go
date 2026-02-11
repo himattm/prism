@@ -778,6 +778,9 @@ func TestCompactionProximity(t *testing.T) {
 		{"95% raw with 0% buffer", 95, 0, 95},          // disabled, returns raw
 		{"0% raw with 22.5% buffer", 0, 22.5, 0},       // 0 stays 0
 		{"100% raw with 22.5% buffer", 100, 22.5, 100}, // capped at 100
+		{"bufferPct exactly 100", 50, 100, 100},
+		{"bufferPct over 100", 50, 150, 100},
+		{"negative bufferPct", 50, -10, 50},
 	}
 
 	for _, tt := range tests {
