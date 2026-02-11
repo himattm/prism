@@ -20,7 +20,7 @@ func setupGitRepo(t *testing.T, dir string) {
 		{"git", "init"},
 		{"git", "config", "user.email", "test@test.com"},
 		{"git", "config", "user.name", "Test"},
-		{"git", "checkout", "-b", "main"},
+		{"git", "checkout", "-B", "main"},
 		{"git", "commit", "--allow-empty", "-m", "initial"},
 	}
 
@@ -40,7 +40,7 @@ func TestGitPlugin_Execute_NonGitProjectDir_GitCurrentDir(t *testing.T) {
 
 	// Create a subdirectory that IS a git repo
 	gitRepoDir := filepath.Join(parentDir, "repo")
-	if err := os.Mkdir(gitRepoDir, 0o755); err != nil {
+	if err := os.Mkdir(gitRepoDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	setupGitRepo(t, gitRepoDir)
@@ -143,13 +143,13 @@ func TestGitPlugin_Execute_SubdirOfGitRepo(t *testing.T) {
 	parentDir := t.TempDir()
 
 	gitRepoDir := filepath.Join(parentDir, "repo")
-	if err := os.Mkdir(gitRepoDir, 0o755); err != nil {
+	if err := os.Mkdir(gitRepoDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	setupGitRepo(t, gitRepoDir)
 
 	subDir := filepath.Join(gitRepoDir, "subdir")
-	if err := os.Mkdir(subDir, 0o755); err != nil {
+	if err := os.Mkdir(subDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
