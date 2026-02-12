@@ -182,3 +182,59 @@ func TestGitPlugin_Execute_SubdirOfGitRepo(t *testing.T) {
 		t.Errorf("expected result to contain branch name (main or master), got %q", result)
 	}
 }
+
+func TestGitPlugin_Execute_WorktreeBranch(t *testing.T) {
+	// Setup: main repo on "main", worktree on "feature-branch".
+	// ProjectDir points to the main repo, CurrentDir points to the worktree.
+	// The git plugin should show the worktree's branch, not the main repo's.
+	mainRepoDir := t.TempDir()
+	setupGitRepo(t, mainRepoDir)
+
+	// Create a branch for the worktree
+	cmd := exec.Command("git", "branch", "feature-branch")
+	cmd.Dir = mainRepoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git branch failed: %v\n%s", err, out)
+	}
+
+	// Create the worktree
+	worktreeDir := filepath.Join(t.TempDir(), "worktree")
+	cmd = exec.Command("git", "worktree", "add", worktreeDir, "feature-branch")
+	cmd.Dir = mainRepoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git worktree add failed: %v\n%s", err, out)
+	}
+	t.Cleanup(func() {
+		cmd := exec.Command("git", "worktree", "remove", worktreeDir)
+		cmd.Dir = mainRepoDir
+		cmd.Run()
+	})
+
+	p := &GitPlugin{}
+	p.SetCache(cache.New())
+
+	ctx := context.Background()
+	input := plugin.Input{
+		Prism: plugin.PrismContext{
+			ProjectDir: mainRepoDir,
+			CurrentDir: worktreeDir,
+		},
+		Colors: map[string]string{
+			"yellow": "",
+			"reset":  "",
+		},
+	}
+
+	result, err := p.Execute(ctx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(result, "feature-branch") {
+		t.Errorf("expected worktree branch 'feature-branch', got %q", result)
+	}
+
+	if strings.Contains(result, "main") {
+		t.Errorf("should NOT show main repo branch 'main', got %q", result)
+	}
+}

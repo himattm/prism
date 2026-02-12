@@ -3,7 +3,9 @@ package git
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -39,9 +41,41 @@ func FindRoot(ctx context.Context, dir string) string {
 }
 
 // EffectiveDir returns the best directory for git operations.
-// Tries projectDir first, falls back to finding git root from currentDir.
+// If currentDir is inside a different worktree than projectDir, returns the
+// worktree root so that git commands reflect the worktree's branch.
+// Otherwise tries projectDir first, then falls back to finding git root from currentDir.
 // Results are cached using the provided cache (if non-nil).
 func EffectiveDir(ctx context.Context, projectDir, currentDir string, c *cache.Cache) string {
+	// Check if currentDir is in a worktree that differs from projectDir.
+	// This handles the case where Claude Code was launched from the main repo
+	// but the user cd'd into a worktree directory.
+	if currentDir != "" && projectDir != "" {
+		cacheKey := "git:effective:wt:" + currentDir
+		if c != nil {
+			if cached, ok := c.Get(cacheKey); ok {
+				if cached != "" {
+					return cached
+				}
+				// cached == "" means not a worktree, fall through
+			}
+		}
+
+		if wtRoot, ok := findWorktreeRoot(currentDir); ok {
+			// currentDir is in a worktree — use it if it differs from projectDir
+			resolved := resolveSymlinks(projectDir)
+			if resolved != wtRoot {
+				if c != nil {
+					c.Set(cacheKey, wtRoot, cache.GitTTL)
+				}
+				return wtRoot
+			}
+		}
+
+		if c != nil {
+			c.Set(cacheKey, "", cache.GitTTL)
+		}
+	}
+
 	// Fast path: ProjectDir is set and is a git repo
 	if projectDir != "" {
 		if IsRepo(ctx, projectDir) {
@@ -68,4 +102,34 @@ func EffectiveDir(ctx context.Context, projectDir, currentDir string, c *cache.C
 	}
 
 	return gitRoot
+}
+
+// findWorktreeRoot walks up from dir looking for a .git file (not directory),
+// which indicates the directory is a git worktree root.
+func findWorktreeRoot(dir string) (string, bool) {
+	current := dir
+	for {
+		gitPath := filepath.Join(current, ".git")
+		info, err := os.Stat(gitPath)
+		if err == nil {
+			if !info.IsDir() {
+				return current, true // .git is a file → worktree
+			}
+			return "", false // .git is a directory → main repo, stop
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", false
+		}
+		current = parent
+	}
+}
+
+// resolveSymlinks resolves symlinks in a path for reliable comparison.
+func resolveSymlinks(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+	return resolved
 }
