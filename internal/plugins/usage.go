@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/himattm/prism/internal/burnrate"
 	"github.com/himattm/prism/internal/cache"
 	"github.com/himattm/prism/internal/plugin"
 )
@@ -38,6 +39,8 @@ type usageConfig struct {
 	// API billing options (api_billing subsection)
 	costDecimals int    // decimal places for cost (default 2)
 	costColor    string // color key for cost (default "gray")
+	showBurnRate bool   // show burn rate ~$X.XX/h (default true)
+	showCache    bool   // show cache efficiency C:XX% (default true)
 }
 
 func (p *UsagePlugin) parseConfig(input plugin.Input) usageConfig {
@@ -51,6 +54,8 @@ func (p *UsagePlugin) parseConfig(input plugin.Input) usageConfig {
 		// api_billing defaults
 		costDecimals: 2,
 		costColor:    "gray",
+		showBurnRate: true,
+		showCache:    true,
 	}
 
 	if c, ok := input.Config["usage"].(map[string]any); ok {
@@ -79,6 +84,12 @@ func (p *UsagePlugin) parseConfig(input plugin.Input) usageConfig {
 			}
 			if v, ok := billing["color"].(string); ok {
 				cfg.costColor = v
+			}
+			if v, ok := billing["show_burn_rate"].(bool); ok {
+				cfg.showBurnRate = v
+			}
+			if v, ok := billing["show_cache"].(bool); ok {
+				cfg.showCache = v
 			}
 		}
 	}
@@ -146,8 +157,50 @@ func (p *UsagePlugin) renderCost(input plugin.Input, cfg usageConfig) string {
 		color = input.Colors["gray"] // fallback
 	}
 	reset := input.Colors["reset"]
-	format := fmt.Sprintf("%%s$%%.%df%%s", cfg.costDecimals)
-	return fmt.Sprintf(format, color, cost, reset)
+	format := fmt.Sprintf("$%%.%df", cfg.costDecimals)
+	costStr := fmt.Sprintf(format, cost)
+
+	// Append burn rate if enabled and session ID is available
+	if cfg.showBurnRate && input.Prism.SessionID != "" {
+		costStr += p.getBurnRateSuffix(input.Prism.SessionID, cost)
+	}
+
+	// Append cache efficiency indicator if enabled
+	if cfg.showCache {
+		if ratio, ok := cacheRatio(input.Session.InputTokens, input.Session.CacheCreationTokens, input.Session.CacheReadTokens); ok {
+			costStr += fmt.Sprintf(" ⌁%d%%", ratio)
+		}
+	}
+
+	return fmt.Sprintf("%s%s%s", color, costStr, reset)
+}
+
+// cacheRatio calculates the cache read hit percentage.
+// Returns (ratio, true) if there are cache reads, or (0, false) if not applicable.
+func cacheRatio(inputTokens, cacheCreationTokens, cacheReadTokens int) (int, bool) {
+	if cacheReadTokens <= 0 {
+		return 0, false
+	}
+	denominator := inputTokens + cacheCreationTokens + cacheReadTokens
+	if denominator <= 0 {
+		return 0, false
+	}
+	return cacheReadTokens * 100 / denominator, true
+}
+
+// getBurnRateSuffix returns the burn rate suffix string (e.g., " ~$1.23/h") or empty string.
+func (p *UsagePlugin) getBurnRateSuffix(sessionID string, currentCost float64) string {
+	snap := burnrate.LoadSnapshot(sessionID)
+	if snap == nil {
+		return ""
+	}
+
+	rate, show := burnrate.CalculateRate(snap, currentCost, time.Now())
+	if !show {
+		return ""
+	}
+
+	return " " + burnrate.FormatRate(rate)
 }
 
 // renderUsageLimits renders usage limits for Max/Pro users

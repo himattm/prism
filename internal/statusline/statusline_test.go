@@ -871,6 +871,61 @@ func TestRenderContext_60PctShowsYellowWithBuffer(t *testing.T) {
 	}
 }
 
+// TestRenderContext_LegacyExcludesCacheReadTokens verifies that cache read tokens
+// do not inflate the legacy context percentage calculation. Cache read tokens represent
+// tokens served from cache at the same logical position and don't consume additional space.
+func TestRenderContext_LegacyExcludesCacheReadTokens(t *testing.T) {
+	// Set up two StatusLines: one with cache read tokens, one without.
+	// Both should produce the same percentage since cache reads shouldn't count.
+	base := ContextUsage{
+		InputTokens:         40000,
+		OutputTokens:        0,
+		CacheCreationTokens: 0,
+		CacheReadTokens:     0,
+	}
+	withCache := ContextUsage{
+		InputTokens:         40000,
+		OutputTokens:        0,
+		CacheCreationTokens: 0,
+		CacheReadTokens:     50000, // Large cache read — should be ignored
+	}
+
+	slBase := &StatusLine{
+		input: Input{
+			Context: ContextInfo{
+				UsedPercentage:      0,
+				RemainingPercentage: 0,
+				CurrentUsage:        base,
+				ContextWindow:       200000,
+			},
+		},
+		config: config.Config{},
+	}
+	slWithCache := &StatusLine{
+		input: Input{
+			Context: ContextInfo{
+				UsedPercentage:      0,
+				RemainingPercentage: 0,
+				CurrentUsage:        withCache,
+				ContextWindow:       200000,
+			},
+		},
+		config: config.Config{},
+	}
+
+	pctBase := slBase.calculateContextPctLegacy()
+	pctWithCache := slWithCache.calculateContextPctLegacy()
+
+	if pctBase != pctWithCache {
+		t.Errorf("cache read tokens should not affect percentage: without=%d%%, with=%d%%", pctBase, pctWithCache)
+	}
+
+	// Verify the actual value is correct: 40000 / (200000 * 0.775) = 25%
+	if pctBase != 25 {
+		t.Errorf("expected 25%% for 40000 tokens in 200000 window, got %d%%", pctBase)
+	}
+}
+
 // TestGetEffectiveGitDir_ProjectDirIsGitRepo returns ProjectDir when it is a git repo
 func TestGetEffectiveGitDir_ProjectDirIsGitRepo(t *testing.T) {
 	tmpDir := setupTestGitRepo(t)
@@ -1002,5 +1057,86 @@ func TestRenderLinesChanged_NonGitProjectDir_GitCurrentDir(t *testing.T) {
 	// Should show +3 -0 from the git repo, not +0 -0
 	if !strings.Contains(result, "+3") {
 		t.Errorf("expected +3 for staged lines in CurrentDir repo, got: %s", result)
+	}
+}
+
+// TestCacheRatio tests the cache ratio calculation helper
+func TestCacheRatio(t *testing.T) {
+	tests := []struct {
+		name                  string
+		input, creation, read int
+		expectedRatio         int
+		expectedOK            bool
+	}{
+		{"normal cache hits", 5000, 2000, 3000, 30, true},     // 3000/(5000+2000+3000)=30%
+		{"high cache ratio", 1000, 1000, 8000, 80, true},      // 8000/10000=80%
+		{"all cache reads", 0, 0, 10000, 100, true},           // 10000/10000=100%
+		{"zero cache reads", 10000, 5000, 0, 0, false},        // no cache reads
+		{"zero denominator", 0, 0, 0, 0, false},               // all zero
+		{"negative cache reads", 10000, 0, -1, 0, false},      // negative
+		{"only input tokens no cache", 50000, 0, 0, 0, false}, // no cache at all
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ratio, ok := cacheRatio(tt.input, tt.creation, tt.read)
+			if ok != tt.expectedOK {
+				t.Errorf("cacheRatio(%d, %d, %d) ok = %v, want %v", tt.input, tt.creation, tt.read, ok, tt.expectedOK)
+			}
+			if ok && ratio != tt.expectedRatio {
+				t.Errorf("cacheRatio(%d, %d, %d) = %d, want %d", tt.input, tt.creation, tt.read, ratio, tt.expectedRatio)
+			}
+		})
+	}
+}
+
+// TestRenderCost_WithCacheIndicator verifies cache indicator appears in cost display
+func TestRenderCost_WithCacheIndicator(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Cost: CostInfo{TotalCostUSD: 1.50},
+			Context: ContextInfo{
+				CurrentUsage: ContextUsage{
+					InputTokens:         5000,
+					CacheCreationTokens: 2000,
+					CacheReadTokens:     3000,
+				},
+			},
+		},
+	}
+
+	result := sl.renderCost()
+
+	if !strings.Contains(result, "$1.50") {
+		t.Errorf("expected cost $1.50, got: %s", result)
+	}
+	// 3000 / (5000+2000+3000) = 30%
+	if !strings.Contains(result, "⌁30%") {
+		t.Errorf("expected cache indicator ⌁30%%, got: %s", result)
+	}
+}
+
+// TestRenderCost_NoCacheIndicatorWhenZero verifies no cache indicator when no cache reads
+func TestRenderCost_NoCacheIndicatorWhenZero(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Cost: CostInfo{TotalCostUSD: 2.00},
+			Context: ContextInfo{
+				CurrentUsage: ContextUsage{
+					InputTokens:         10000,
+					CacheCreationTokens: 5000,
+					CacheReadTokens:     0,
+				},
+			},
+		},
+	}
+
+	result := sl.renderCost()
+
+	if !strings.Contains(result, "$2.00") {
+		t.Errorf("expected cost $2.00, got: %s", result)
+	}
+	if strings.Contains(result, "⌁") {
+		t.Errorf("should not show cache indicator when no cache reads, got: %s", result)
 	}
 }
