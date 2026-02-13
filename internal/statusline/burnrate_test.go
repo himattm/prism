@@ -23,8 +23,13 @@ func TestRenderCost_WithBurnRate(t *testing.T) {
 		Timestamp: time.Now().Add(-2 * time.Hour),
 		CostUSD:   1.00,
 	}
-	data, _ := json.Marshal(snap)
-	os.WriteFile(path, data, 0644)
+	data, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatalf("failed to marshal snapshot: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("failed to write snapshot file: %v", err)
+	}
 
 	sl := &StatusLine{
 		input: Input{
@@ -58,8 +63,13 @@ func TestRenderCost_NoBurnRateBeforeMinTime(t *testing.T) {
 		Timestamp: time.Now().Add(-10 * time.Second),
 		CostUSD:   1.00,
 	}
-	data, _ := json.Marshal(snap)
-	os.WriteFile(path, data, 0644)
+	data, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatalf("failed to marshal snapshot: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("failed to write snapshot file: %v", err)
+	}
 
 	sl := &StatusLine{
 		input: Input{

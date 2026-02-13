@@ -40,7 +40,7 @@ type usageConfig struct {
 	costDecimals int    // decimal places for cost (default 2)
 	costColor    string // color key for cost (default "gray")
 	showBurnRate bool   // show burn rate ~$X.XX/h (default true)
-	showCache    bool   // show cache efficiency C:XX% (default true)
+	showCache    bool   // show cache efficiency ⌁XX% (default true)
 }
 
 func (p *UsagePlugin) parseConfig(input plugin.Input) usageConfig {
@@ -160,16 +160,16 @@ func (p *UsagePlugin) renderCost(input plugin.Input, cfg usageConfig) string {
 	format := fmt.Sprintf("$%%.%df", cfg.costDecimals)
 	costStr := fmt.Sprintf(format, cost)
 
-	// Append burn rate if enabled and session ID is available
-	if cfg.showBurnRate && input.Prism.SessionID != "" {
-		costStr += p.getBurnRateSuffix(input.Prism.SessionID, cost)
-	}
-
 	// Append cache efficiency indicator if enabled
 	if cfg.showCache {
 		if ratio, ok := cacheRatio(input.Session.InputTokens, input.Session.CacheCreationTokens, input.Session.CacheReadTokens); ok {
 			costStr += fmt.Sprintf(" ⌁%d%%", ratio)
 		}
+	}
+
+	// Append burn rate if enabled and session ID is available
+	if cfg.showBurnRate && input.Prism.SessionID != "" {
+		costStr += p.getBurnRateSuffix(input.Prism.SessionID, cost)
 	}
 
 	return fmt.Sprintf("%s%s%s", color, costStr, reset)
@@ -190,8 +190,8 @@ func cacheRatio(inputTokens, cacheCreationTokens, cacheReadTokens int) (int, boo
 
 // getBurnRateSuffix returns the burn rate suffix string (e.g., " ~$1.23/h") or empty string.
 func (p *UsagePlugin) getBurnRateSuffix(sessionID string, currentCost float64) string {
-	snap := burnrate.LoadSnapshot(sessionID)
-	if snap == nil {
+	snap, existed, err := burnrate.LoadOrCreateSnapshot(sessionID, currentCost)
+	if err != nil || !existed {
 		return ""
 	}
 

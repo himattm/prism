@@ -5,10 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestHandleSessionEnd_CleansBurnRateFile(t *testing.T) {
-	sessionID := "test-session-end-burn"
+	sessionID := "test-session-end-burn-" + time.Now().Format("20060102150405")
 
 	// Create the burn rate file
 	burnRateFile := filepath.Join(os.TempDir(), fmt.Sprintf("prism-burn-%s", sessionID))
@@ -19,7 +20,9 @@ func TestHandleSessionEnd_CleansBurnRateFile(t *testing.T) {
 
 	// Also create idle file (normal cleanup)
 	idleFile := filepath.Join(os.TempDir(), fmt.Sprintf("prism-idle-%s", sessionID))
-	os.WriteFile(idleFile, []byte{}, 0644)
+	if err := os.WriteFile(idleFile, []byte{}, 0644); err != nil {
+		t.Fatalf("failed to create idle file: %v", err)
+	}
 	defer os.Remove(idleFile)
 
 	m := NewManager()
@@ -43,7 +46,7 @@ func TestHandleSessionEnd_CleansBurnRateFile(t *testing.T) {
 
 func TestHandleSessionEnd_NoErrorWithoutFiles(t *testing.T) {
 	m := NewManager()
-	input := Input{SessionID: "nonexistent-session"}
+	input := Input{SessionID: "nonexistent-session-" + time.Now().Format("20060102150405")}
 
 	err := m.HandleSessionEnd(input, nil)
 	if err != nil {

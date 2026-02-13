@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/himattm/prism/internal/burnrate"
 	"github.com/himattm/prism/internal/config"
 	"github.com/himattm/prism/internal/plugins"
 )
@@ -183,8 +184,7 @@ func (m *Manager) HandleSessionEnd(input Input, rawInput []byte) error {
 		os.Remove(idleFile)
 
 		// Clean up burn rate snapshot file
-		burnRateFile := filepath.Join(os.TempDir(), fmt.Sprintf("prism-burn-%s", input.SessionID))
-		os.Remove(burnRateFile)
+		burnrate.Cleanup(input.SessionID)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

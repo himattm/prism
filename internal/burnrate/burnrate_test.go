@@ -18,6 +18,34 @@ func TestFilePath(t *testing.T) {
 	}
 }
 
+func TestFilePath_PathTraversal(t *testing.T) {
+	tests := []struct {
+		name      string
+		sessionID string
+	}{
+		{"dot-dot-slash", "../../../etc/passwd"},
+		{"forward-slash", "foo/bar/baz"},
+		{"backslash", `foo\bar\baz`},
+		{"mixed-separators", `../foo\bar/../baz`},
+	}
+
+	tmpDir := os.TempDir()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := FilePath(tt.sessionID)
+			if !strings.HasPrefix(path, tmpDir) {
+				t.Errorf("path %q escapes temp dir %q", path, tmpDir)
+			}
+			// Ensure no path separators in the filename portion
+			filename := strings.TrimPrefix(path, tmpDir)
+			filename = strings.TrimPrefix(filename, string(os.PathSeparator))
+			if strings.ContainsAny(filename, `/\`) {
+				t.Errorf("filename %q contains path separators", filename)
+			}
+		})
+	}
+}
+
 func TestLoadOrCreateSnapshotAt_CreatesNew(t *testing.T) {
 	sessionID := "test-burn-create-" + time.Now().Format("20060102150405")
 	defer os.Remove(FilePath(sessionID))
@@ -59,8 +87,13 @@ func TestLoadOrCreateSnapshotAt_LoadsExisting(t *testing.T) {
 		Timestamp: time.Now().Add(-5 * time.Minute),
 		CostUSD:   0.75,
 	}
-	data, _ := json.Marshal(original)
-	os.WriteFile(path, data, 0644)
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("failed to marshal snapshot: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("failed to write snapshot file: %v", err)
+	}
 
 	snap, existed, err := LoadOrCreateSnapshotAt(sessionID, 2.00, time.Now())
 	if err != nil {
@@ -90,8 +123,13 @@ func TestLoadSnapshot_Existing(t *testing.T) {
 		Timestamp: time.Now(),
 		CostUSD:   3.50,
 	}
-	data, _ := json.Marshal(original)
-	os.WriteFile(path, data, 0644)
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("failed to marshal snapshot: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("failed to write snapshot file: %v", err)
+	}
 
 	snap := LoadSnapshot(sessionID)
 	if snap == nil {
@@ -220,7 +258,9 @@ func TestCleanup_RemovesFile(t *testing.T) {
 	sessionID := "test-burn-cleanup-" + time.Now().Format("20060102150405")
 	path := FilePath(sessionID)
 
-	os.WriteFile(path, []byte("{}"), 0644)
+	if err := os.WriteFile(path, []byte("{}"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		t.Fatal("test setup: file should exist")

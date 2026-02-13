@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -16,8 +17,10 @@ type Snapshot struct {
 }
 
 // FilePath returns the path to the burn rate snapshot file for a session.
+// Path separators are stripped from sessionID to prevent directory traversal.
 func FilePath(sessionID string) string {
-	return filepath.Join(os.TempDir(), fmt.Sprintf("prism-burn-%s", sessionID))
+	safe := strings.ReplaceAll(strings.ReplaceAll(sessionID, "/", ""), "\\", "")
+	return filepath.Join(os.TempDir(), fmt.Sprintf("prism-burn-%s", safe))
 }
 
 // LoadOrCreateSnapshot loads an existing snapshot or creates a new one.
@@ -52,7 +55,12 @@ func LoadOrCreateSnapshotAt(sessionID string, currentCost float64, now time.Time
 		return nil, false, err
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+		return nil, false, err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
 		return nil, false, err
 	}
 

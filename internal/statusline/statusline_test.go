@@ -1,12 +1,15 @@
 package statusline
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/himattm/prism/internal/burnrate"
 	"github.com/himattm/prism/internal/colors"
 	"github.com/himattm/prism/internal/config"
 )
@@ -1113,6 +1116,130 @@ func TestRenderCost_WithCacheIndicator(t *testing.T) {
 	// 3000 / (5000+2000+3000) = 30%
 	if !strings.Contains(result, "⌁30%") {
 		t.Errorf("expected cache indicator ⌁30%%, got: %s", result)
+	}
+}
+
+// TestRenderCost_CacheBeforeBurnRate verifies output order: cost → cache → burn rate
+func TestRenderCost_CacheBeforeBurnRate(t *testing.T) {
+	sessionID := "test-order-" + time.Now().Format("20060102150405")
+	path := burnrate.FilePath(sessionID)
+	defer os.Remove(path)
+
+	// Create a snapshot from 2 hours ago
+	snap := struct {
+		Timestamp time.Time `json:"timestamp"`
+		CostUSD   float64   `json:"cost_usd"`
+	}{
+		Timestamp: time.Now().Add(-2 * time.Hour),
+		CostUSD:   1.00,
+	}
+	data, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
+
+	sl := &StatusLine{
+		input: Input{
+			SessionID: sessionID,
+			Cost:      CostInfo{TotalCostUSD: 5.00},
+			Context: ContextInfo{
+				CurrentUsage: ContextUsage{
+					InputTokens:         5000,
+					CacheCreationTokens: 2000,
+					CacheReadTokens:     3000,
+				},
+			},
+		},
+	}
+
+	result := sl.renderCost()
+
+	cacheIdx := strings.Index(result, "⌁")
+	burnIdx := strings.Index(result, "~$")
+	if cacheIdx < 0 || burnIdx < 0 {
+		t.Fatalf("expected both cache and burn rate in output, got: %s", result)
+	}
+	if cacheIdx > burnIdx {
+		t.Errorf("cache indicator should appear before burn rate, got: %s", result)
+	}
+}
+
+// TestRenderCost_ShowCacheDisabled verifies show_cache=false suppresses cache indicator
+func TestRenderCost_ShowCacheDisabled(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Cost: CostInfo{TotalCostUSD: 1.50},
+			Context: ContextInfo{
+				CurrentUsage: ContextUsage{
+					InputTokens:         5000,
+					CacheCreationTokens: 2000,
+					CacheReadTokens:     3000,
+				},
+			},
+		},
+		config: config.Config{
+			Plugins: map[string]any{
+				"usage": map[string]any{
+					"api_billing": map[string]any{
+						"show_cache": false,
+					},
+				},
+			},
+		},
+	}
+
+	result := sl.renderCost()
+
+	if strings.Contains(result, "⌁") {
+		t.Errorf("show_cache=false should suppress cache indicator, got: %s", result)
+	}
+}
+
+// TestRenderCost_ShowBurnRateDisabled verifies show_burn_rate=false suppresses burn rate
+func TestRenderCost_ShowBurnRateDisabled(t *testing.T) {
+	sessionID := "test-noburnrate-" + time.Now().Format("20060102150405")
+	path := burnrate.FilePath(sessionID)
+	defer os.Remove(path)
+
+	// Create a snapshot from 2 hours ago
+	snap := struct {
+		Timestamp time.Time `json:"timestamp"`
+		CostUSD   float64   `json:"cost_usd"`
+	}{
+		Timestamp: time.Now().Add(-2 * time.Hour),
+		CostUSD:   1.00,
+	}
+	data, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
+
+	sl := &StatusLine{
+		input: Input{
+			SessionID: sessionID,
+			Cost:      CostInfo{TotalCostUSD: 5.00},
+		},
+		config: config.Config{
+			Plugins: map[string]any{
+				"usage": map[string]any{
+					"api_billing": map[string]any{
+						"show_burn_rate": false,
+					},
+				},
+			},
+		},
+	}
+
+	result := sl.renderCost()
+
+	if strings.Contains(result, "/h") {
+		t.Errorf("show_burn_rate=false should suppress burn rate, got: %s", result)
 	}
 }
 

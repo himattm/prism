@@ -461,8 +461,18 @@ func (sl *StatusLine) renderCost() string {
 	cost := sl.input.Cost.TotalCostUSD
 	costStr := fmt.Sprintf("$%.2f", cost)
 
+	// Add cache efficiency indicator
+	showCache := sl.getConfigBool("show_cache", true)
+	if showCache {
+		usage := sl.input.Context.CurrentUsage
+		if ratio, ok := cacheRatio(usage.InputTokens, usage.CacheCreationTokens, usage.CacheReadTokens); ok {
+			costStr += fmt.Sprintf(" ⌁%d%%", ratio)
+		}
+	}
+
 	// Compute burn rate if session ID is available
-	if sl.input.SessionID != "" {
+	showBurnRate := sl.getConfigBool("show_burn_rate", true)
+	if showBurnRate && sl.input.SessionID != "" {
 		snap, existed, err := burnrate.LoadOrCreateSnapshot(sl.input.SessionID, cost)
 		if err == nil && existed {
 			if rate, show := burnrate.CalculateRate(snap, cost, time.Now()); show {
@@ -471,13 +481,27 @@ func (sl *StatusLine) renderCost() string {
 		}
 	}
 
-	// Add cache efficiency indicator
-	usage := sl.input.Context.CurrentUsage
-	if ratio, ok := cacheRatio(usage.InputTokens, usage.CacheCreationTokens, usage.CacheReadTokens); ok {
-		costStr += fmt.Sprintf(" ⌁%d%%", ratio)
-	}
-
 	return colors.Wrap(colors.Gray, costStr)
+}
+
+// getConfigBool reads a bool from config.Plugins["usage"]["api_billing"][key], defaulting to defVal.
+func (sl *StatusLine) getConfigBool(key string, defVal bool) bool {
+	if sl.config.Plugins == nil {
+		return defVal
+	}
+	usage, ok := sl.config.Plugins["usage"].(map[string]any)
+	if !ok {
+		return defVal
+	}
+	billing, ok := usage["api_billing"].(map[string]any)
+	if !ok {
+		return defVal
+	}
+	v, ok := billing[key].(bool)
+	if !ok {
+		return defVal
+	}
+	return v
 }
 
 // cacheRatio calculates the cache read hit percentage.
