@@ -23,7 +23,10 @@ mv "$BINARY_PATH.new" "$BINARY_PATH"
 
 echo "Restored to release version: $($BINARY_PATH version)"
 
-# Show available backups
-echo ""
-echo "Backups available:"
-ls -la "$BINARY_PATH.backup."* 2>/dev/null || echo "  (none)"
+# Clean up backups
+BACKUPS=$(ls "$BINARY_PATH.backup."* 2>/dev/null)
+if [ -n "$BACKUPS" ]; then
+    COUNT=$(echo "$BACKUPS" | wc -l | tr -d ' ')
+    rm -f $BACKUPS
+    echo "Cleaned up $COUNT backup(s)"
+fi
