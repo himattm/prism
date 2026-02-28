@@ -2,6 +2,8 @@ package plugins
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -389,6 +391,48 @@ func TestUsagePlugin_Execute_APIBilling(t *testing.T) {
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
 	}
+}
+
+func TestUsageDiskCache_RoundTrip(t *testing.T) {
+	// Save usage data to disk
+	usage := &UsageResponse{
+		FiveHour: &UsageLimit{Utilization: 25.0, ResetsAt: "2026-01-01T05:00:00Z"},
+		SevenDay: &UsageLimit{Utilization: 10.0, ResetsAt: "2026-01-07T00:00:00Z"},
+	}
+	saveUsageCache(usage)
+
+	// Load it back
+	loaded, ok := loadUsageCache()
+	if !ok {
+		t.Fatal("expected to load cached usage data")
+	}
+	if loaded.FiveHour == nil || loaded.FiveHour.Utilization != 25.0 {
+		t.Errorf("expected FiveHour.Utilization=25, got %v", loaded.FiveHour)
+	}
+	if loaded.SevenDay == nil || loaded.SevenDay.Utilization != 10.0 {
+		t.Errorf("expected SevenDay.Utilization=10, got %v", loaded.SevenDay)
+	}
+	if loaded.SevenDayOpus != nil {
+		t.Errorf("expected SevenDayOpus=nil, got %v", loaded.SevenDayOpus)
+	}
+
+	// Clean up
+	os.Remove(filepath.Join(os.TempDir(), usageDiskCacheFile))
+}
+
+func TestUsageDiskCache_LoadMissing(t *testing.T) {
+	// Remove any existing cache file
+	os.Remove(filepath.Join(os.TempDir(), usageDiskCacheFile))
+
+	_, ok := loadUsageCache()
+	if ok {
+		t.Error("expected load to fail when no cache file exists")
+	}
+}
+
+func TestUsageDiskCache_SaveNil(t *testing.T) {
+	// Should not panic or create a file
+	saveUsageCache(nil)
 }
 
 func TestTimeUntilReset(t *testing.T) {

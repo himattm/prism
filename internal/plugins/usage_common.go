@@ -25,6 +25,9 @@ const (
 	// to prevent duplicate rendering in the same status line refresh
 	usageRenderedKey = "usage_rendered"
 	usageRenderedTTL = 100 * time.Millisecond
+
+	// usageDiskCacheFile persists usage data across process invocations
+	usageDiskCacheFile = "prism-usage-cache"
 )
 
 // UsageResponse represents the API response from the usage endpoint
@@ -267,4 +270,33 @@ func LevelToBarChar(level int) rune {
 		level = 7
 	}
 	return BarChars[level]
+}
+
+// loadUsageCache reads cached usage data from disk (survives across process invocations)
+func loadUsageCache() (*UsageResponse, bool) {
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+
+	var usage UsageResponse
+	if err := json.Unmarshal(data, &usage); err != nil {
+		return nil, false
+	}
+
+	return &usage, true
+}
+
+// saveUsageCache writes usage data to disk for cross-invocation persistence
+func saveUsageCache(u *UsageResponse) {
+	if u == nil {
+		return
+	}
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	data, err := json.Marshal(u)
+	if err != nil {
+		return
+	}
+	os.WriteFile(path, data, 0644)
 }
