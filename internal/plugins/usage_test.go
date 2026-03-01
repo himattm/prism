@@ -48,6 +48,8 @@ func TestParseUsageConfig(t *testing.T) {
 				showOpus:     true,
 				costDecimals: 2,
 				costColor:    "gray",
+				showBurnRate: true,
+				showCache:    true,
 			},
 		},
 		{
@@ -66,6 +68,8 @@ func TestParseUsageConfig(t *testing.T) {
 				showOpus:     true,
 				costDecimals: 2,
 				costColor:    "gray",
+				showBurnRate: true,
+				showCache:    true,
 			},
 		},
 		{
@@ -86,6 +90,8 @@ func TestParseUsageConfig(t *testing.T) {
 				showOpus:     false,
 				costDecimals: 2,
 				costColor:    "gray",
+				showBurnRate: true,
+				showCache:    true,
 			},
 		},
 		{
@@ -105,6 +111,8 @@ func TestParseUsageConfig(t *testing.T) {
 				showOpus:     true,
 				costDecimals: 4,
 				costColor:    "cyan",
+				showBurnRate: true,
+				showCache:    true,
 			},
 		},
 		{
@@ -127,6 +135,48 @@ func TestParseUsageConfig(t *testing.T) {
 				showOpus:     false,
 				costDecimals: 3,
 				costColor:    "gray",
+				showBurnRate: true,
+				showCache:    true,
+			},
+		},
+		{
+			name: "show_burn_rate disabled",
+			input: map[string]any{
+				"usage": map[string]any{
+					"api_billing": map[string]any{
+						"show_burn_rate": false,
+					},
+				},
+			},
+			expected: usageConfig{
+				style:        "text",
+				showHours:    true,
+				showDays:     true,
+				showOpus:     true,
+				costDecimals: 2,
+				costColor:    "gray",
+				showBurnRate: false,
+				showCache:    true,
+			},
+		},
+		{
+			name: "show_cache disabled",
+			input: map[string]any{
+				"usage": map[string]any{
+					"api_billing": map[string]any{
+						"show_cache": false,
+					},
+				},
+			},
+			expected: usageConfig{
+				style:        "text",
+				showHours:    true,
+				showDays:     true,
+				showOpus:     true,
+				costDecimals: 2,
+				costColor:    "gray",
+				showBurnRate: true,
+				showCache:    false,
 			},
 		},
 	}
@@ -154,6 +204,12 @@ func TestParseUsageConfig(t *testing.T) {
 			}
 			if result.costColor != tt.expected.costColor {
 				t.Errorf("costColor: expected %s, got %s", tt.expected.costColor, result.costColor)
+			}
+			if result.showBurnRate != tt.expected.showBurnRate {
+				t.Errorf("showBurnRate: expected %v, got %v", tt.expected.showBurnRate, result.showBurnRate)
+			}
+			if result.showCache != tt.expected.showCache {
+				t.Errorf("showCache: expected %v, got %v", tt.expected.showCache, result.showCache)
 			}
 		})
 	}
@@ -354,6 +410,124 @@ func TestUsagePlugin_RenderCost(t *testing.T) {
 			result := p.renderCost(input, tt.cfg)
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestUsagePlugin_RenderCost_WithCacheIndicator(t *testing.T) {
+	p := &UsagePlugin{}
+	p.SetCache(cache.New())
+
+	input := plugin.Input{
+		Session: plugin.SessionContext{
+			CostUSD:             1.23,
+			InputTokens:         5000,
+			CacheCreationTokens: 2000,
+			CacheReadTokens:     3000,
+		},
+		Colors: map[string]string{
+			"gray":  "\033[90m",
+			"reset": "\033[0m",
+		},
+	}
+
+	// showCache enabled (default) - should show indicator
+	cfg := usageConfig{
+		costDecimals: 2,
+		costColor:    "gray",
+		showCache:    true,
+	}
+	result := p.renderCost(input, cfg)
+	// 3000 / (5000+2000+3000) = 30%
+	expected := "\033[90m$1.23 ⌁30%\033[0m"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestUsagePlugin_RenderCost_CacheDisabledByConfig(t *testing.T) {
+	p := &UsagePlugin{}
+	p.SetCache(cache.New())
+
+	input := plugin.Input{
+		Session: plugin.SessionContext{
+			CostUSD:             1.23,
+			InputTokens:         5000,
+			CacheCreationTokens: 2000,
+			CacheReadTokens:     3000,
+		},
+		Colors: map[string]string{
+			"gray":  "\033[90m",
+			"reset": "\033[0m",
+		},
+	}
+
+	// showCache disabled - should NOT show indicator
+	cfg := usageConfig{
+		costDecimals: 2,
+		costColor:    "gray",
+		showCache:    false,
+	}
+	result := p.renderCost(input, cfg)
+	expected := "\033[90m$1.23\033[0m"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestUsagePlugin_RenderCost_NoCacheWhenZeroReads(t *testing.T) {
+	p := &UsagePlugin{}
+	p.SetCache(cache.New())
+
+	input := plugin.Input{
+		Session: plugin.SessionContext{
+			CostUSD:             2.50,
+			InputTokens:         10000,
+			CacheCreationTokens: 5000,
+			CacheReadTokens:     0,
+		},
+		Colors: map[string]string{
+			"gray":  "\033[90m",
+			"reset": "\033[0m",
+		},
+	}
+
+	cfg := usageConfig{
+		costDecimals: 2,
+		costColor:    "gray",
+		showCache:    true,
+	}
+	result := p.renderCost(input, cfg)
+	expected := "\033[90m$2.50\033[0m"
+	if result != expected {
+		t.Errorf("expected %q (no cache indicator), got %q", expected, result)
+	}
+}
+
+func TestCacheRatio(t *testing.T) {
+	tests := []struct {
+		name                  string
+		input, creation, read int
+		expectedRatio         int
+		expectedOK            bool
+	}{
+		{"78% cache hits", 1000, 1200, 7800, 78, true},
+		{"30% cache hits", 5000, 2000, 3000, 30, true},
+		{"100% cache reads", 0, 0, 10000, 100, true},
+		{"zero cache reads", 10000, 5000, 0, 0, false},
+		{"all zeroes", 0, 0, 0, 0, false},
+		{"negative cache reads", 10000, 0, -1, 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ratio, ok := cacheRatio(tt.input, tt.creation, tt.read)
+			if ok != tt.expectedOK {
+				t.Errorf("cacheRatio(%d, %d, %d) ok = %v, want %v", tt.input, tt.creation, tt.read, ok, tt.expectedOK)
+			}
+			if ok && ratio != tt.expectedRatio {
+				t.Errorf("cacheRatio(%d, %d, %d) = %d, want %d", tt.input, tt.creation, tt.read, ratio, tt.expectedRatio)
 			}
 		})
 	}

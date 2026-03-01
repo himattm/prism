@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/himattm/prism/internal/burnrate"
 	"github.com/himattm/prism/internal/cache"
 	"github.com/himattm/prism/internal/colors"
 	"github.com/himattm/prism/internal/config"
@@ -324,7 +325,7 @@ func (sl *StatusLine) calculateContextPctLegacy() int {
 	}
 
 	totalTokens := usage.InputTokens + usage.OutputTokens +
-		usage.CacheCreationTokens + usage.CacheReadTokens
+		usage.CacheCreationTokens
 	pct := (totalTokens * 100) / usableCapacity
 	if pct > 100 {
 		pct = 100
@@ -458,7 +459,62 @@ func getGitDiffStats(projectDir string) (int, int) {
 
 func (sl *StatusLine) renderCost() string {
 	cost := sl.input.Cost.TotalCostUSD
-	return colors.Wrap(colors.Gray, fmt.Sprintf("$%.2f", cost))
+	costStr := fmt.Sprintf("$%.2f", cost)
+
+	// Add cache efficiency indicator
+	showCache := sl.getConfigBool("show_cache", true)
+	if showCache {
+		usage := sl.input.Context.CurrentUsage
+		if ratio, ok := cacheRatio(usage.InputTokens, usage.CacheCreationTokens, usage.CacheReadTokens); ok {
+			costStr += fmt.Sprintf(" ⌁%d%%", ratio)
+		}
+	}
+
+	// Compute burn rate if session ID is available
+	showBurnRate := sl.getConfigBool("show_burn_rate", true)
+	if showBurnRate && sl.input.SessionID != "" {
+		snap, existed, err := burnrate.LoadOrCreateSnapshot(sl.input.SessionID, cost)
+		if err == nil && existed {
+			if rate, show := burnrate.CalculateRate(snap, cost, time.Now()); show {
+				costStr += " " + burnrate.FormatRate(rate)
+			}
+		}
+	}
+
+	return colors.Wrap(colors.Gray, costStr)
+}
+
+// getConfigBool reads a bool from config.Plugins["usage"]["api_billing"][key], defaulting to defVal.
+func (sl *StatusLine) getConfigBool(key string, defVal bool) bool {
+	if sl.config.Plugins == nil {
+		return defVal
+	}
+	usage, ok := sl.config.Plugins["usage"].(map[string]any)
+	if !ok {
+		return defVal
+	}
+	billing, ok := usage["api_billing"].(map[string]any)
+	if !ok {
+		return defVal
+	}
+	v, ok := billing[key].(bool)
+	if !ok {
+		return defVal
+	}
+	return v
+}
+
+// cacheRatio calculates the cache read hit percentage.
+// Returns (ratio, true) if there are cache reads, or (0, false) if not applicable.
+func cacheRatio(inputTokens, cacheCreationTokens, cacheReadTokens int) (int, bool) {
+	if cacheReadTokens <= 0 {
+		return 0, false
+	}
+	denominator := inputTokens + cacheCreationTokens + cacheReadTokens
+	if denominator <= 0 {
+		return 0, false
+	}
+	return cacheReadTokens * 100 / denominator, true
 }
 
 func (sl *StatusLine) runPlugin(name string) string {
@@ -472,11 +528,16 @@ func (sl *StatusLine) runPlugin(name string) string {
 			IsIdle:     sl.isIdle,
 		},
 		Session: plugin.SessionContext{
-			Model:        sl.input.Model.DisplayName,
-			ContextPct:   sl.calculateContextPct(),
-			CostUSD:      sl.input.Cost.TotalCostUSD,
-			LinesAdded:   sl.input.Cost.TotalLinesAdded,
-			LinesRemoved: sl.input.Cost.TotalLinesRemoved,
+			Model:               sl.input.Model.DisplayName,
+			ContextPct:          sl.calculateContextPct(),
+			CostUSD:             sl.input.Cost.TotalCostUSD,
+			LinesAdded:          sl.input.Cost.TotalLinesAdded,
+			LinesRemoved:        sl.input.Cost.TotalLinesRemoved,
+			InputTokens:         sl.input.Context.CurrentUsage.InputTokens,
+			OutputTokens:        sl.input.Context.CurrentUsage.OutputTokens,
+			CacheCreationTokens: sl.input.Context.CurrentUsage.CacheCreationTokens,
+			CacheReadTokens:     sl.input.Context.CurrentUsage.CacheReadTokens,
+			ContextWindowSize:   sl.input.Context.ContextWindow,
 		},
 		Config: sl.getPluginConfig(name),
 		Colors: colors.ColorMap(),

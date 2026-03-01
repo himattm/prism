@@ -29,11 +29,16 @@ type PrismContext struct {
 
 // SessionContext provides context about the Claude session
 type SessionContext struct {
-	Model        string  `json:"model"`
-	ContextPct   int     `json:"context_pct"`
-	CostUSD      float64 `json:"cost_usd"`
-	LinesAdded   int     `json:"lines_added"`
-	LinesRemoved int     `json:"lines_removed"`
+	Model               string  `json:"model"`
+	ContextPct          int     `json:"context_pct"`
+	CostUSD             float64 `json:"cost_usd"`
+	LinesAdded          int     `json:"lines_added"`
+	LinesRemoved        int     `json:"lines_removed"`
+	InputTokens         int     `json:"input_tokens"`
+	OutputTokens        int     `json:"output_tokens"`
+	CacheCreationTokens int     `json:"cache_creation_tokens"`
+	CacheReadTokens     int     `json:"cache_read_tokens"`
+	ContextWindowSize   int     `json:"context_window_size"`
 }
 
 // Plugin represents a discovered plugin

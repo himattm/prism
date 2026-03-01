@@ -132,16 +132,30 @@ Prism uses a 3-tier config system (highest priority first):
 | `model` | Current model | `Opus 4.5` |
 | `context` | Context usage bar | `████░░░░▒▒ 56%` |
 | `linesChanged` | Uncommitted changes | `+123 -45` |
-| `usage` | **Auto-detects billing type** (see below) | `$1.23` or `3h:78% 5d:40%` |
+| `usage` | **Auto-detects billing type** (see below) | `$1.23 ⌁78% ~$4.50/h` or `3h:78% 5d:40%` |
 
 ### Usage (Auto-Detect Billing)
 
 The `usage` section automatically detects your billing type and shows the appropriate information:
 
-- **API Billing users**: Shows session cost (e.g., `$1.23`)
+- **API Billing users**: Shows session cost (e.g., `$1.23 ⌁78% ~$4.50/h`)
 - **Max/Pro plan users**: Shows usage limits with countdown (e.g., `3h:78% 5d:40% 4d:25%`)
 
 This replaces the old `cost` section. Simply use `usage` in your sections array - no configuration needed for basic usage.
+
+#### API Billing Display
+
+The full cost display includes optional cache and burn rate indicators:
+
+```
+$1.23 ⌁78% ~$4.50/h
+│     │     └─ Session burn rate (cost velocity per hour)
+│     └─ Cache efficiency (% of input tokens served from cache, ~10x cheaper)
+└─ Session cost
+```
+
+- **Cache efficiency** (`⌁78%`) - Only appears when cache tokens are present
+- **Burn rate** (`~$4.50/h`) - Only appears after 60+ seconds of session data and when rate > $0.01/h
 
 #### Max/Pro Display Formats
 
@@ -177,7 +191,9 @@ Colors indicate urgency: white (<70%), yellow (70-89%), red (90%+)
     },
     "api_billing": {
       "decimals": 2,        // decimal places for cost
-      "color": "gray"       // color from palette
+      "color": "gray",      // color from palette
+      "show_cache": true,   // show cache efficiency indicator (⌁78%)
+      "show_burn_rate": true // show session burn rate (~$4.50/h)
     }
   }
 }
@@ -211,7 +227,7 @@ Shows **actionable** usage - percentage of capacity before autocompact triggers:
 | `agent_task_queue` | Build queue status | `tq: ▸ gradlew:build ⧗ 2` |
 | `spotify` | Now playing track | `♫ Artist - Track` |
 | `update` | Auto-update + indicator | `⬆` (yellow when update available) |
-| `usage` | Auto-detect: cost or plan limits | `$1.23` or `3h:78%` |
+| `usage` | Auto-detect: cost or plan limits | `$1.23 ⌁78% ~$4.50/h` or `3h:78%` |
 | `usage_text` | Max/Pro limits (text only) | `3h:78% 5d:40%` |
 | `usage_bars` | Max/Pro limits (bars only) | `▂█ ▅▃ ▅▂` |
 
