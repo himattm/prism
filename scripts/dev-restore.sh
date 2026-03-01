@@ -23,7 +23,9 @@ mv "$BINARY_PATH.new" "$BINARY_PATH"
 
 echo "Restored to release version: $($BINARY_PATH version)"
 
-# Show available backups
-echo ""
-echo "Backups available:"
-ls -la "$BINARY_PATH.backup."* 2>/dev/null || echo "  (none)"
+# Clean up backups
+BACKUPS=( "$BINARY_PATH".backup.* )
+if [[ -e "${BACKUPS[0]}" ]]; then
+    echo "Cleaned up ${#BACKUPS[@]} backup(s)"
+    rm -f "${BACKUPS[@]}"
+fi
