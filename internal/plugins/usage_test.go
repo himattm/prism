@@ -394,6 +394,9 @@ func TestUsagePlugin_Execute_APIBilling(t *testing.T) {
 }
 
 func TestUsageDiskCache_RoundTrip(t *testing.T) {
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	defer os.Remove(path)
+
 	// Save usage data to disk
 	usage := &UsageResponse{
 		FiveHour: &UsageLimit{Utilization: 25.0, ResetsAt: "2026-01-01T05:00:00Z"},
@@ -415,9 +418,6 @@ func TestUsageDiskCache_RoundTrip(t *testing.T) {
 	if loaded.SevenDayOpus != nil {
 		t.Errorf("expected SevenDayOpus=nil, got %v", loaded.SevenDayOpus)
 	}
-
-	// Clean up
-	os.Remove(filepath.Join(os.TempDir(), usageDiskCacheFile))
 }
 
 func TestUsageDiskCache_LoadMissing(t *testing.T) {
@@ -431,8 +431,39 @@ func TestUsageDiskCache_LoadMissing(t *testing.T) {
 }
 
 func TestUsageDiskCache_SaveNil(t *testing.T) {
+	// Remove any pre-existing cache file so we can verify nil doesn't create one
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	os.Remove(path)
+
 	// Should not panic or create a file
 	saveUsageCache(nil)
+
+	if _, err := os.Stat(path); err == nil {
+		t.Error("saveUsageCache(nil) should not create a cache file")
+	}
+}
+
+func TestUsageDiskCache_Expired(t *testing.T) {
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	defer os.Remove(path)
+
+	// Write valid cache data
+	usage := &UsageResponse{
+		FiveHour: &UsageLimit{Utilization: 50.0, ResetsAt: "2026-01-01T05:00:00Z"},
+	}
+	saveUsageCache(usage)
+
+	// Backdate the file's modification time beyond the TTL
+	old := time.Now().Add(-(usageDiskCacheTTL + time.Minute))
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate cache file: %v", err)
+	}
+
+	// loadUsageCache should reject the stale file
+	_, ok := loadUsageCache()
+	if ok {
+		t.Error("expected loadUsageCache to reject expired cache file")
+	}
 }
 
 func TestTimeUntilReset(t *testing.T) {

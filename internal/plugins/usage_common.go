@@ -28,6 +28,10 @@ const (
 
 	// usageDiskCacheFile persists usage data across process invocations
 	usageDiskCacheFile = "prism-usage-cache"
+
+	// usageDiskCacheTTL is the max age of the on-disk usage cache file.
+	// After this duration the file is considered stale and ignored.
+	usageDiskCacheTTL = 5 * time.Minute
 )
 
 // UsageResponse represents the API response from the usage endpoint
@@ -272,9 +276,19 @@ func LevelToBarChar(level int) rune {
 	return BarChars[level]
 }
 
-// loadUsageCache reads cached usage data from disk (survives across process invocations)
+// loadUsageCache reads cached usage data from disk (survives across process invocations).
+// Returns false if the file is missing, unreadable, or older than usageDiskCacheTTL.
 func loadUsageCache() (*UsageResponse, bool) {
 	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, false
+	}
+	if time.Since(info.ModTime()) > usageDiskCacheTTL {
+		return nil, false
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, false
