@@ -272,7 +272,7 @@ func getUsageColor(utilization float64, white, yellow, red string) string {
 }
 
 func (p *UsagePlugin) getUsageData(ctx context.Context, isIdle bool) (*UsageResponse, error) {
-	// Check cache first
+	// Check in-memory cache first
 	if cached, ok := p.cache.Get(usageCacheKey); ok {
 		var usage UsageResponse
 		if err := json.Unmarshal([]byte(cached), &usage); err == nil {
@@ -282,6 +282,10 @@ func (p *UsagePlugin) getUsageData(ctx context.Context, isIdle bool) (*UsageResp
 
 	// Only fetch fresh data when idle
 	if !isIdle {
+		// Return last-known data from disk while busy
+		if usage, ok := loadUsageCache(); ok {
+			return usage, nil
+		}
 		return nil, nil
 	}
 
@@ -297,10 +301,11 @@ func (p *UsagePlugin) getUsageData(ctx context.Context, isIdle bool) (*UsageResp
 		return nil, err
 	}
 
-	// Cache the result
+	// Cache the result (in-memory and on disk)
 	if data, err := json.Marshal(usage); err == nil {
 		p.cache.Set(usageCacheKey, string(data), usageCacheTTL)
 	}
+	saveUsageCache(usage)
 
 	return usage, nil
 }

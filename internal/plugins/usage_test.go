@@ -2,6 +2,8 @@ package plugins
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -388,6 +390,79 @@ func TestUsagePlugin_Execute_APIBilling(t *testing.T) {
 	expected := "\033[90m$2.50\033[0m"
 	if result != expected {
 		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestUsageDiskCache_RoundTrip(t *testing.T) {
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	defer os.Remove(path)
+
+	// Save usage data to disk
+	usage := &UsageResponse{
+		FiveHour: &UsageLimit{Utilization: 25.0, ResetsAt: "2026-01-01T05:00:00Z"},
+		SevenDay: &UsageLimit{Utilization: 10.0, ResetsAt: "2026-01-07T00:00:00Z"},
+	}
+	saveUsageCache(usage)
+
+	// Load it back
+	loaded, ok := loadUsageCache()
+	if !ok {
+		t.Fatal("expected to load cached usage data")
+	}
+	if loaded.FiveHour == nil || loaded.FiveHour.Utilization != 25.0 {
+		t.Errorf("expected FiveHour.Utilization=25, got %v", loaded.FiveHour)
+	}
+	if loaded.SevenDay == nil || loaded.SevenDay.Utilization != 10.0 {
+		t.Errorf("expected SevenDay.Utilization=10, got %v", loaded.SevenDay)
+	}
+	if loaded.SevenDayOpus != nil {
+		t.Errorf("expected SevenDayOpus=nil, got %v", loaded.SevenDayOpus)
+	}
+}
+
+func TestUsageDiskCache_LoadMissing(t *testing.T) {
+	// Remove any existing cache file
+	os.Remove(filepath.Join(os.TempDir(), usageDiskCacheFile))
+
+	_, ok := loadUsageCache()
+	if ok {
+		t.Error("expected load to fail when no cache file exists")
+	}
+}
+
+func TestUsageDiskCache_SaveNil(t *testing.T) {
+	// Remove any pre-existing cache file so we can verify nil doesn't create one
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	os.Remove(path)
+
+	// Should not panic or create a file
+	saveUsageCache(nil)
+
+	if _, err := os.Stat(path); err == nil {
+		t.Error("saveUsageCache(nil) should not create a cache file")
+	}
+}
+
+func TestUsageDiskCache_Expired(t *testing.T) {
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	defer os.Remove(path)
+
+	// Write valid cache data
+	usage := &UsageResponse{
+		FiveHour: &UsageLimit{Utilization: 50.0, ResetsAt: "2026-01-01T05:00:00Z"},
+	}
+	saveUsageCache(usage)
+
+	// Backdate the file's modification time beyond the TTL
+	old := time.Now().Add(-(usageDiskCacheTTL + time.Minute))
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate cache file: %v", err)
+	}
+
+	// loadUsageCache should reject the stale file
+	_, ok := loadUsageCache()
+	if ok {
+		t.Error("expected loadUsageCache to reject expired cache file")
 	}
 }
 
