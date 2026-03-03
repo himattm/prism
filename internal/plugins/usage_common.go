@@ -61,18 +61,24 @@ type OAuthCredentials struct {
 	Scopes       []string `json:"scopes"`
 }
 
-// GetOAuthToken retrieves the OAuth access token from the system credential store
-// Supports macOS (Keychain) and Linux (~/.claude/.credentials.json)
+// GetOAuthToken retrieves the OAuth access token from the credential store.
+// Tries ~/.claude/.credentials.json first (works on all platforms, avoids
+// macOS Keychain truncation when MCP OAuth data is present), then falls
+// back to the macOS Keychain.
 // Note: This is uncached - prefer GetCachedOAuthToken() for repeated calls
 func GetOAuthToken() (string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		return getOAuthTokenMacOS()
-	case "linux":
-		return getOAuthTokenLinux()
-	default:
-		return "", fmt.Errorf("OAuth token retrieval not supported on %s", runtime.GOOS)
+	// Try credentials file first — available on all platforms and not
+	// subject to the macOS `security -w` output-truncation issue.
+	if token, err := getOAuthTokenFromFile(); err == nil {
+		return token, nil
 	}
+
+	// Fallback to macOS Keychain
+	if runtime.GOOS == "darwin" {
+		return getOAuthTokenMacOS()
+	}
+
+	return "", fmt.Errorf("no OAuth credentials found")
 }
 
 // GetCachedOAuthToken retrieves the OAuth token with caching to avoid
@@ -132,8 +138,9 @@ func getOAuthTokenMacOS() (string, error) {
 	return creds.ClaudeAIOAuth.AccessToken, nil
 }
 
-// getOAuthTokenLinux retrieves the token from ~/.claude/.credentials.json
-func getOAuthTokenLinux() (string, error) {
+// getOAuthTokenFromFile retrieves the token from ~/.claude/.credentials.json.
+// This file exists on both macOS and Linux.
+func getOAuthTokenFromFile() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
@@ -145,7 +152,6 @@ func getOAuthTokenLinux() (string, error) {
 		return "", fmt.Errorf("failed to read credentials file: %w", err)
 	}
 
-	// Parse the JSON credentials (same structure as macOS)
 	var creds KeychainCredentials
 	if err := json.Unmarshal(data, &creds); err != nil {
 		return "", fmt.Errorf("failed to parse credentials file: %w", err)
