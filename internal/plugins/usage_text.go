@@ -135,7 +135,7 @@ func (p *UsageTextPlugin) getUsageData(ctx context.Context, isIdle bool) (*Usage
 	// Only fetch fresh data when idle
 	if !isIdle {
 		// Return last-known data from disk while busy
-		if usage, ok := loadUsageCache(); ok {
+		if usage, _, ok := loadUsageCache(); ok {
 			return usage, nil
 		}
 		return nil, nil

@@ -29,8 +29,9 @@ const (
 	// usageDiskCacheFile persists usage data across process invocations
 	usageDiskCacheFile = "prism-usage-cache"
 
-	// usageDiskCacheTTL is the max age of the on-disk usage cache file.
-	// After this duration the file is considered stale and ignored.
+	// usageDiskCacheTTL is the freshness threshold for the on-disk usage cache.
+	// Files newer than this are considered fresh; older files are returned
+	// as stale so the caller can render them dimmed.
 	usageDiskCacheTTL = 5 * time.Minute
 )
 
@@ -277,29 +278,32 @@ func LevelToBarChar(level int) rune {
 }
 
 // loadUsageCache reads cached usage data from disk (survives across process invocations).
-// Returns false if the file is missing, unreadable, or older than usageDiskCacheTTL.
-func loadUsageCache() (*UsageResponse, bool) {
+// Returns (data, false, true) if the file is fresh (within usageDiskCacheTTL),
+// (data, true, true) if the file exists but is stale, or (nil, false, false) if
+// the file is missing or unreadable.
+func loadUsageCache() (data *UsageResponse, stale bool, ok bool) {
 	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
 
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, false
-	}
-	if time.Since(info.ModTime()) > usageDiskCacheTTL {
-		return nil, false
+		return nil, false, false
 	}
 
-	data, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
-		return nil, false
+		return nil, false, false
 	}
 
 	var usage UsageResponse
-	if err := json.Unmarshal(data, &usage); err != nil {
-		return nil, false
+	if err := json.Unmarshal(raw, &usage); err != nil {
+		return nil, false, false
 	}
 
-	return &usage, true
+	if time.Since(info.ModTime()) > usageDiskCacheTTL {
+		return &usage, true, true
+	}
+
+	return &usage, false, true
 }
 
 // saveUsageCache writes usage data to disk for cross-invocation persistence

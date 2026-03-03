@@ -578,10 +578,13 @@ func TestUsageDiskCache_RoundTrip(t *testing.T) {
 	}
 	saveUsageCache(usage)
 
-	// Load it back
-	loaded, ok := loadUsageCache()
+	// Load it back — freshly written file should not be stale
+	loaded, stale, ok := loadUsageCache()
 	if !ok {
 		t.Fatal("expected to load cached usage data")
+	}
+	if stale {
+		t.Error("expected freshly written cache to not be stale")
 	}
 	if loaded.FiveHour == nil || loaded.FiveHour.Utilization != 25.0 {
 		t.Errorf("expected FiveHour.Utilization=25, got %v", loaded.FiveHour)
@@ -598,9 +601,15 @@ func TestUsageDiskCache_LoadMissing(t *testing.T) {
 	// Remove any existing cache file
 	os.Remove(filepath.Join(os.TempDir(), usageDiskCacheFile))
 
-	_, ok := loadUsageCache()
+	data, stale, ok := loadUsageCache()
 	if ok {
 		t.Error("expected load to fail when no cache file exists")
+	}
+	if stale {
+		t.Error("expected stale=false when file is missing")
+	}
+	if data != nil {
+		t.Error("expected data=nil when file is missing")
 	}
 }
 
@@ -633,11 +642,121 @@ func TestUsageDiskCache_Expired(t *testing.T) {
 		t.Fatalf("failed to backdate cache file: %v", err)
 	}
 
-	// loadUsageCache should reject the stale file
-	_, ok := loadUsageCache()
-	if ok {
-		t.Error("expected loadUsageCache to reject expired cache file")
+	// loadUsageCache should return the data marked as stale
+	loaded, stale, ok := loadUsageCache()
+	if !ok {
+		t.Fatal("expected loadUsageCache to return expired data with ok=true")
 	}
+	if !stale {
+		t.Error("expected stale=true for expired cache file")
+	}
+	if loaded.FiveHour == nil || loaded.FiveHour.Utilization != 50.0 {
+		t.Errorf("expected FiveHour.Utilization=50, got %v", loaded.FiveHour)
+	}
+}
+
+func TestUsageDiskCache_Stale(t *testing.T) {
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	defer os.Remove(path)
+
+	usage := &UsageResponse{
+		FiveHour:     &UsageLimit{Utilization: 30.0, ResetsAt: "2026-01-01T05:00:00Z"},
+		SevenDay:     &UsageLimit{Utilization: 15.0, ResetsAt: "2026-01-07T00:00:00Z"},
+		SevenDayOpus: &UsageLimit{Utilization: 5.0, ResetsAt: "2026-01-07T00:00:00Z"},
+	}
+	saveUsageCache(usage)
+
+	// Backdate to just past the TTL
+	old := time.Now().Add(-(usageDiskCacheTTL + 10*time.Second))
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate cache file: %v", err)
+	}
+
+	loaded, stale, ok := loadUsageCache()
+	if !ok {
+		t.Fatal("expected ok=true for stale but readable file")
+	}
+	if !stale {
+		t.Error("expected stale=true for expired file")
+	}
+	if loaded.FiveHour == nil || loaded.FiveHour.Utilization != 30.0 {
+		t.Errorf("expected FiveHour.Utilization=30, got %v", loaded.FiveHour)
+	}
+	if loaded.SevenDay == nil || loaded.SevenDay.Utilization != 15.0 {
+		t.Errorf("expected SevenDay.Utilization=15, got %v", loaded.SevenDay)
+	}
+	if loaded.SevenDayOpus == nil || loaded.SevenDayOpus.Utilization != 5.0 {
+		t.Errorf("expected SevenDayOpus.Utilization=5, got %v", loaded.SevenDayOpus)
+	}
+}
+
+func TestRenderStale(t *testing.T) {
+	p := &UsagePlugin{}
+	p.SetCache(cache.New())
+
+	usage := &UsageResponse{
+		FiveHour: &UsageLimit{Utilization: 45.0, ResetsAt: time.Now().Add(3 * time.Hour).Format(time.RFC3339)},
+		SevenDay: &UsageLimit{Utilization: 20.0, ResetsAt: time.Now().Add(5 * 24 * time.Hour).Format(time.RFC3339)},
+	}
+
+	darkGray := "\033[90m"
+	reset := "\033[0m"
+
+	input := plugin.Input{
+		Colors: map[string]string{
+			"white":       "\033[37m",
+			"yellow":      "\033[33m",
+			"red":         "\033[31m",
+			"teal":        "\033[36m",
+			"sky_blue":    "\033[94m",
+			"dark_violet":  "\033[35m",
+			"lavender":    "\033[95m",
+			"tangerine":   "\033[38;5;208m",
+			"peach":       "\033[38;5;217m",
+			"dark_gray":   darkGray,
+			"reset":       reset,
+		},
+	}
+
+	// Test text mode: all non-reset colors should be dark_gray
+	cfg := usageConfig{style: "text", showHours: true, showMinutes: true, showDays: true, showOpus: true}
+	result := p.renderStale(input, usage, cfg)
+
+	// The output should only contain dark_gray and reset escape codes (no white/yellow/red)
+	for _, forbidden := range []string{"\033[37m", "\033[33m", "\033[31m"} {
+		if contains(result, forbidden) {
+			t.Errorf("stale text output should not contain color %q, got %q", forbidden, result)
+		}
+	}
+	if !contains(result, darkGray) {
+		t.Errorf("stale text output should contain dark_gray %q, got %q", darkGray, result)
+	}
+
+	// Test bars mode: all non-reset colors should be dark_gray
+	cfg.style = "bars"
+	result = p.renderStale(input, usage, cfg)
+	for _, forbidden := range []string{"\033[36m", "\033[94m", "\033[35m", "\033[95m"} {
+		if contains(result, forbidden) {
+			t.Errorf("stale bars output should not contain color %q, got %q", forbidden, result)
+		}
+	}
+	if !contains(result, darkGray) {
+		t.Errorf("stale bars output should contain dark_gray %q, got %q", darkGray, result)
+	}
+}
+
+// contains checks if substr exists in s (avoids importing strings for test).
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && searchString(s, substr)
+}
+
+func searchString(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 func TestTimeUntilReset(t *testing.T) {
