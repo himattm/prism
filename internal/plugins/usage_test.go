@@ -709,7 +709,7 @@ func TestRenderStale(t *testing.T) {
 			"red":         "\033[31m",
 			"teal":        "\033[36m",
 			"sky_blue":    "\033[94m",
-			"dark_violet":  "\033[35m",
+			"dark_violet": "\033[35m",
 			"lavender":    "\033[95m",
 			"tangerine":   "\033[38;5;208m",
 			"peach":       "\033[38;5;217m",
