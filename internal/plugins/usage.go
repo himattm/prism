@@ -205,11 +205,12 @@ func (p *UsagePlugin) getBurnRateSuffix(sessionID string, currentCost float64) s
 
 // renderUsageLimits renders usage limits for Max/Pro users
 func (p *UsagePlugin) renderUsageLimits(ctx context.Context, input plugin.Input, cfg usageConfig) (string, error) {
-	// Get usage data (with caching)
-	usage, err := p.getUsageData(ctx, input.Prism.IsIdle)
+	usage, stale, err := p.getUsageData(ctx, input.Prism.IsIdle)
 	if err != nil || usage == nil {
-		// Fall back to cost if we can't get usage data
-		return p.renderCost(input, cfg), nil
+		return "", nil
+	}
+	if stale {
+		return p.renderStale(input, usage, cfg), nil
 	}
 
 	if cfg.style == "bars" {
@@ -311,6 +312,28 @@ func (p *UsagePlugin) renderBars(input plugin.Input, usage *UsageResponse, cfg u
 	return result
 }
 
+// renderStale renders usage data with dimmed colors to indicate stale data
+func (p *UsagePlugin) renderStale(input plugin.Input, usage *UsageResponse, cfg usageConfig) string {
+	// Override all colors with dark_gray so the render appears faded
+	staleColors := make(map[string]string, len(input.Colors))
+	for k, v := range input.Colors {
+		staleColors[k] = v
+	}
+	dimColor := input.Colors["dark_gray"]
+	for k := range staleColors {
+		if k != "reset" {
+			staleColors[k] = dimColor
+		}
+	}
+	staleInput := input
+	staleInput.Colors = staleColors
+
+	if cfg.style == "bars" {
+		return p.renderBars(staleInput, usage, cfg)
+	}
+	return p.renderText(staleInput, usage, cfg)
+}
+
 // getUsageColor returns the appropriate color based on utilization level
 // Matches context bar thresholds: >= 90% red, >= 70% yellow, < 70% white
 func getUsageColor(utilization float64, white, yellow, red string) string {
@@ -324,34 +347,45 @@ func getUsageColor(utilization float64, white, yellow, red string) string {
 	}
 }
 
-func (p *UsagePlugin) getUsageData(ctx context.Context, isIdle bool) (*UsageResponse, error) {
+func (p *UsagePlugin) getUsageData(ctx context.Context, isIdle bool) (*UsageResponse, bool, error) {
 	// Check in-memory cache first
 	if cached, ok := p.cache.Get(usageCacheKey); ok {
 		var usage UsageResponse
 		if err := json.Unmarshal([]byte(cached), &usage); err == nil {
-			return &usage, nil
+			return &usage, false, nil
 		}
 	}
 
 	// Only fetch fresh data when idle
 	if !isIdle {
 		// Return last-known data from disk while busy
-		if usage, ok := loadUsageCache(); ok {
-			return usage, nil
+		usage, stale, ok := loadUsageCache()
+		if ok {
+			return usage, stale, nil
 		}
-		return nil, nil
+		return nil, false, nil
 	}
 
 	// Get OAuth token (cached)
 	token, err := GetCachedOAuthToken(p.cache)
 	if err != nil {
-		return nil, err
+		// API unavailable — fall back to disk cache
+		usage, stale, ok := loadUsageCache()
+		if ok {
+			return usage, stale, nil
+		}
+		return nil, false, err
 	}
 
 	// Fetch usage data
 	usage, err := FetchUsage(ctx, token)
 	if err != nil {
-		return nil, err
+		// API unavailable — fall back to disk cache
+		cached, stale, ok := loadUsageCache()
+		if ok {
+			return cached, stale, nil
+		}
+		return nil, false, err
 	}
 
 	// Cache the result (in-memory and on disk)
@@ -360,5 +394,5 @@ func (p *UsagePlugin) getUsageData(ctx context.Context, isIdle bool) (*UsageResp
 	}
 	saveUsageCache(usage)
 
-	return usage, nil
+	return usage, false, nil
 }
