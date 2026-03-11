@@ -585,6 +585,14 @@ func TestRenderDir_WorktreeIndicator(t *testing.T) {
 	if !strings.Contains(result, "⎇") {
 		t.Errorf("renderDir should include ⎇ indicator for worktree, got: %s", result)
 	}
+
+	// Should show mainRepoName/worktreeName
+	mainRepoName := filepath.Base(tmpDir)
+	worktreeName := filepath.Base(worktreeDir)
+	expected := mainRepoName + "/" + worktreeName
+	if !strings.Contains(result, expected) {
+		t.Errorf("renderDir should show '%s', got: %s", expected, result)
+	}
 }
 
 // TestRenderDir_NoIndicatorForMainRepo does not show ⎇ for main repo
@@ -718,10 +726,11 @@ func TestRenderDir_CurrentDirInWorktree(t *testing.T) {
 	if !strings.Contains(result, worktreeName) {
 		t.Errorf("should show worktree name '%s', got: %s", worktreeName, result)
 	}
-	// Should NOT show the main repo name
+	// Should show the main repo name as prefix
 	mainRepoName := filepath.Base(tmpDir)
-	if strings.Contains(result, mainRepoName) {
-		t.Errorf("should NOT show main repo name '%s' when in worktree, got: %s", mainRepoName, result)
+	expected := mainRepoName + "/" + worktreeName
+	if !strings.Contains(result, expected) {
+		t.Errorf("should show '%s' (mainRepo/worktree), got: %s", expected, result)
 	}
 }
 
@@ -759,13 +768,15 @@ func TestRenderDir_CurrentDirInWorktreeSubdir(t *testing.T) {
 
 	result := sl.renderDir()
 
-	// Should show worktree name + /src with ⎇ indicator
+	// Should show mainRepo/worktreeName + /src with ⎇ indicator
 	worktreeName := filepath.Base(worktreeDir)
+	mainRepoName := filepath.Base(tmpDir)
 	if !strings.Contains(result, "⎇") {
 		t.Errorf("should show ⎇ indicator, got: %s", result)
 	}
-	if !strings.Contains(result, worktreeName) {
-		t.Errorf("should show worktree name '%s', got: %s", worktreeName, result)
+	expected := mainRepoName + "/" + worktreeName
+	if !strings.Contains(result, expected) {
+		t.Errorf("should show '%s', got: %s", expected, result)
 	}
 	if !strings.Contains(result, "/src") {
 		t.Errorf("should show subdir '/src', got: %s", result)
@@ -1240,6 +1251,68 @@ func TestRenderCost_ShowBurnRateDisabled(t *testing.T) {
 
 	if strings.Contains(result, "/h") {
 		t.Errorf("show_burn_rate=false should suppress burn rate, got: %s", result)
+	}
+}
+
+// TestGetMainRepoName_ValidWorktree returns correct main repo name
+func TestGetMainRepoName_ValidWorktree(t *testing.T) {
+	tmpDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a worktree
+	worktreeDir := filepath.Join(os.TempDir(), "prism-test-mainrepo-valid")
+	defer os.RemoveAll(worktreeDir)
+
+	cmd := exec.Command("git", "worktree", "add", worktreeDir, "HEAD")
+	cmd.Dir = tmpDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create worktree: %v", err)
+	}
+
+	name := getMainRepoName(worktreeDir)
+	expected := filepath.Base(tmpDir)
+	if name != expected {
+		t.Errorf("getMainRepoName should return '%s', got '%s'", expected, name)
+	}
+}
+
+// TestGetMainRepoName_MainRepo returns empty for a regular (non-worktree) repo
+func TestGetMainRepoName_MainRepo(t *testing.T) {
+	tmpDir := setupTestGitRepo(t)
+	defer os.RemoveAll(tmpDir)
+
+	name := getMainRepoName(tmpDir)
+	if name != "" {
+		t.Errorf("getMainRepoName should return '' for main repo, got '%s'", name)
+	}
+}
+
+// TestParseMainRepoName_Fallbacks verifies graceful failures
+func TestParseMainRepoName_Fallbacks(t *testing.T) {
+	// Nonexistent directory
+	if name := parseMainRepoName("/nonexistent/path"); name != "" {
+		t.Errorf("expected '' for nonexistent dir, got '%s'", name)
+	}
+
+	// Directory without .git
+	tmpDir, err := os.MkdirTemp("", "prism-test-nogit-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if name := parseMainRepoName(tmpDir); name != "" {
+		t.Errorf("expected '' for dir without .git, got '%s'", name)
+	}
+
+	// .git as directory (regular repo, not worktree)
+	gitDir := filepath.Join(tmpDir, ".git")
+	if err := os.MkdirAll(gitDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if name := parseMainRepoName(tmpDir); name != "" {
+		t.Errorf("expected '' for .git directory, got '%s'", name)
 	}
 }
 

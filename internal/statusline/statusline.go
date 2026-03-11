@@ -169,6 +169,11 @@ func (sl *StatusLine) renderDir() string {
 	}
 
 	displayName := filepath.Base(displayBase)
+	if inWorktree {
+		if mainRepo := getMainRepoName(displayBase); mainRepo != "" {
+			displayName = mainRepo + "/" + displayName
+		}
+	}
 	icon := sl.config.Icon
 	if icon != "" {
 		icon += " "
@@ -273,6 +278,52 @@ func (sl *StatusLine) findWorktreeRootCached(dir string) (string, bool) {
 		statusCache.Set(cacheKey, "", cache.WorktreeTTL)
 	}
 	return root, isWorktree
+}
+
+// parseMainRepoName reads the .git file in a worktree root to determine the
+// main repository name. In a git worktree, .git is a file containing:
+//
+//	gitdir: /path/to/main/repo/.git/worktrees/worktree-name
+//
+// Returns "" on any failure (not a worktree, can't read, can't parse).
+func parseMainRepoName(worktreeRoot string) string {
+	data, err := os.ReadFile(filepath.Join(worktreeRoot, ".git"))
+	if err != nil {
+		return ""
+	}
+
+	content := strings.TrimSpace(string(data))
+	if !strings.HasPrefix(content, "gitdir: ") {
+		return ""
+	}
+
+	gitdir := strings.TrimPrefix(content, "gitdir: ")
+	if !filepath.IsAbs(gitdir) {
+		gitdir = filepath.Clean(filepath.Join(worktreeRoot, gitdir))
+	}
+
+	// Find the ".git" segment in the path to locate the main repo root.
+	// e.g. /path/to/main-repo/.git/worktrees/name → /path/to/main-repo
+	sep := string(filepath.Separator)
+	marker := sep + ".git" + sep
+	idx := strings.LastIndex(gitdir, marker)
+	if idx < 0 {
+		return ""
+	}
+
+	return filepath.Base(gitdir[:idx])
+}
+
+// getMainRepoName returns the main repository name for a worktree, with caching.
+func getMainRepoName(worktreeRoot string) string {
+	cacheKey := "main-repo:" + worktreeRoot
+	if cached, ok := statusCache.Get(cacheKey); ok {
+		return cached
+	}
+
+	name := parseMainRepoName(worktreeRoot)
+	statusCache.Set(cacheKey, name, cache.WorktreeTTL)
+	return name
 }
 
 func (sl *StatusLine) renderModel() string {
