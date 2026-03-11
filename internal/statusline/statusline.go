@@ -306,7 +306,7 @@ func parseMainRepoName(worktreeRoot string) string {
 	// e.g. /path/to/main-repo/.git/worktrees/name → /path/to/main-repo
 	sep := string(filepath.Separator)
 	marker := sep + ".git" + sep
-	idx := strings.Index(gitdir, marker)
+	idx := strings.LastIndex(gitdir, marker)
 	if idx < 0 {
 		return ""
 	}
