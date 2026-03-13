@@ -1340,3 +1340,125 @@ func TestRenderCost_NoCacheIndicatorWhenZero(t *testing.T) {
 		t.Errorf("should not show cache indicator when no cache reads, got: %s", result)
 	}
 }
+
+func TestDefaultContextWindow(t *testing.T) {
+	tests := []struct {
+		model    string
+		expected int
+	}{
+		{"Opus 4.6", 1000000},
+		{"Sonnet 4.6", 1000000},
+		{"opus 4.6", 1000000},
+		{"Claude Opus 4.6", 1000000},
+		{"Opus 4.5", 200000},
+		{"Sonnet 4", 200000},
+		{"Haiku 3.5", 200000},
+		{"", 200000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			got := defaultContextWindow(tt.model)
+			if got != tt.expected {
+				t.Errorf("defaultContextWindow(%q) = %d, want %d", tt.model, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatContextWindowSize(t *testing.T) {
+	tests := []struct {
+		tokens   int
+		expected string
+	}{
+		{1000000, "(1M)"},
+		{2000000, "(2M)"},
+		{200000, "(200k)"},
+		{128000, "(128k)"},
+		{100000, "(100k)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			got := formatContextWindowSize(tt.tokens)
+			if got != tt.expected {
+				t.Errorf("formatContextWindowSize(%d) = %q, want %q", tt.tokens, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRenderModel_ShowsContextWindow(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Model: ModelInfo{DisplayName: "Opus 4.6"},
+			Context: ContextInfo{
+				ContextWindow: 1000000,
+			},
+		},
+	}
+
+	result := sl.renderModel()
+	if !strings.Contains(result, "Opus 4.6") {
+		t.Errorf("expected model name in output, got: %s", result)
+	}
+	if !strings.Contains(result, "(1M)") {
+		t.Errorf("expected (1M) context window indicator, got: %s", result)
+	}
+}
+
+func TestRenderModel_InfersContextWindowFromModelName(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Model: ModelInfo{DisplayName: "Sonnet 4.6"},
+			Context: ContextInfo{
+				ContextWindow: 0, // Not provided
+			},
+		},
+	}
+
+	result := sl.renderModel()
+	if !strings.Contains(result, "(1M)") {
+		t.Errorf("expected (1M) inferred from model name, got: %s", result)
+	}
+}
+
+func TestRenderModel_DefaultContextWindowForOlderModels(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Model: ModelInfo{DisplayName: "Opus 4.5"},
+			Context: ContextInfo{
+				ContextWindow: 0,
+			},
+		},
+	}
+
+	result := sl.renderModel()
+	if !strings.Contains(result, "(200k)") {
+		t.Errorf("expected (200k) for older model, got: %s", result)
+	}
+}
+
+func TestCalculateContextPctLegacy_1MWindow(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Model: ModelInfo{DisplayName: "Opus 4.6"},
+			Context: ContextInfo{
+				UsedPercentage:      0,
+				RemainingPercentage: 0,
+				CurrentUsage: ContextUsage{
+					InputTokens: 100000,
+				},
+				ContextWindow: 0, // Not provided, should infer 1M
+			},
+		},
+		config: config.Config{},
+	}
+
+	pct := sl.calculateContextPctLegacy()
+
+	// 100000 / (1000000 * 0.775) = 12% (with 22.5% autocompact buffer)
+	if pct != 12 {
+		t.Errorf("expected 12%% with 1M window, got: %d%%", pct)
+	}
+}
