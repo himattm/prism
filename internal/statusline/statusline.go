@@ -338,10 +338,24 @@ func (sl *StatusLine) renderModel() string {
 
 // formatContextWindowSize formats a token count as a compact label like "(1M)" or "(200k)".
 func formatContextWindowSize(tokens int) string {
-	if tokens >= 1000000 && tokens%1000000 == 0 {
-		return fmt.Sprintf("(%dM)", tokens/1000000)
+	if tokens >= 1000000 {
+		if tokens%1000000 == 0 {
+			return fmt.Sprintf("(%dM)", tokens/1000000)
+		}
+		// e.g. 1500000 -> "(1.5M)"
+		val := float64(tokens) / 1000000
+		s := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.1f", val), "0"), ".")
+		return fmt.Sprintf("(%sM)", s)
 	}
-	return fmt.Sprintf("(%dk)", tokens/1000)
+	if tokens >= 1000 {
+		if tokens%1000 == 0 {
+			return fmt.Sprintf("(%dk)", tokens/1000)
+		}
+		val := float64(tokens) / 1000
+		s := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.1f", val), "0"), ".")
+		return fmt.Sprintf("(%sk)", s)
+	}
+	return fmt.Sprintf("(%d)", tokens)
 }
 
 func (sl *StatusLine) renderContext() string {
