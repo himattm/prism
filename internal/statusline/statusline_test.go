@@ -1341,13 +1341,6 @@ func TestRenderCost_NoCacheIndicatorWhenZero(t *testing.T) {
 	}
 }
 
-func TestDefaultContextWindow(t *testing.T) {
-	got := defaultContextWindow()
-	if got != 200000 {
-		t.Errorf("defaultContextWindow() = %d, want 200000", got)
-	}
-}
-
 func TestFormatContextWindowSize(t *testing.T) {
 	tests := []struct {
 		tokens   int

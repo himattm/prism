@@ -330,17 +330,10 @@ func (sl *StatusLine) renderModel() string {
 	name := sl.input.Model.DisplayName
 	windowSize := sl.input.Context.ContextWindow
 	if windowSize == 0 {
-		windowSize = defaultContextWindow()
+		windowSize = 200000
 	}
 	suffix := formatContextWindowSize(windowSize)
 	return colors.Wrap(colors.Magenta, name+" "+suffix)
-}
-
-// defaultContextWindow returns a fallback context window size when Claude Code
-// does not provide context_window_size. We always return 200k because extended
-// context (1M) cannot be reliably detected from the model name alone.
-func defaultContextWindow() int {
-	return 200000
 }
 
 // formatContextWindowSize formats a token count as a compact label like "(1M)" or "(200k)".
@@ -388,7 +381,7 @@ func (sl *StatusLine) calculateContextPctLegacy() int {
 	usage := sl.input.Context.CurrentUsage
 	windowSize := sl.input.Context.ContextWindow
 	if windowSize == 0 {
-		windowSize = defaultContextWindow()
+		windowSize = 200000
 	}
 
 	// Get autocompact buffer from config (default 22.5%)
