@@ -1340,3 +1340,89 @@ func TestRenderCost_NoCacheIndicatorWhenZero(t *testing.T) {
 		t.Errorf("should not show cache indicator when no cache reads, got: %s", result)
 	}
 }
+
+func TestFormatContextWindowSize(t *testing.T) {
+	tests := []struct {
+		tokens   int
+		expected string
+	}{
+		{1000000, "(1M)"},
+		{2000000, "(2M)"},
+		{1500000, "(1.5M)"},
+		{1100000, "(1.1M)"},
+		{200000, "(200k)"},
+		{128000, "(128k)"},
+		{100000, "(100k)"},
+		{1500, "(1.5k)"},
+		{500, "(500)"},
+		{0, "(0)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			got := formatContextWindowSize(tt.tokens)
+			if got != tt.expected {
+				t.Errorf("formatContextWindowSize(%d) = %q, want %q", tt.tokens, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRenderModel_ShowsContextWindow(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Model: ModelInfo{DisplayName: "Opus 4.6"},
+			Context: ContextInfo{
+				ContextWindow: 1000000,
+			},
+		},
+	}
+
+	result := sl.renderModel()
+	if !strings.Contains(result, "Opus 4.6") {
+		t.Errorf("expected model name in output, got: %s", result)
+	}
+	if !strings.Contains(result, "(1M)") {
+		t.Errorf("expected (1M) context window indicator, got: %s", result)
+	}
+}
+
+func TestRenderModel_FallsBackTo200kWhenNotProvided(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Model: ModelInfo{DisplayName: "Opus 4.6"},
+			Context: ContextInfo{
+				ContextWindow: 0, // Not provided by Claude Code
+			},
+		},
+	}
+
+	result := sl.renderModel()
+	if !strings.Contains(result, "(200k)") {
+		t.Errorf("expected (200k) fallback when context_window_size not provided, got: %s", result)
+	}
+}
+
+func TestCalculateContextPctLegacy_1MWindow(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Model: ModelInfo{DisplayName: "Opus 4.6"},
+			Context: ContextInfo{
+				UsedPercentage:      0,
+				RemainingPercentage: 0,
+				CurrentUsage: ContextUsage{
+					InputTokens: 100000,
+				},
+				ContextWindow: 1000000, // Provided by Claude Code
+			},
+		},
+		config: config.Config{},
+	}
+
+	pct := sl.calculateContextPctLegacy()
+
+	// 100000 / (1000000 * 0.775) = 12% (with 22.5% autocompact buffer)
+	if pct != 12 {
+		t.Errorf("expected 12%% with 1M window, got: %d%%", pct)
+	}
+}
