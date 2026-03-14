@@ -338,14 +338,10 @@ func (sl *StatusLine) renderModel() string {
 
 // formatContextWindowSize formats a token count as a compact label like "(1M)" or "(200k)".
 func formatContextWindowSize(tokens int) string {
-	switch {
-	case tokens >= 1000000 && tokens%1000000 == 0:
+	if tokens >= 1000000 && tokens%1000000 == 0 {
 		return fmt.Sprintf("(%dM)", tokens/1000000)
-	case tokens >= 1000 && tokens%1000 == 0:
-		return fmt.Sprintf("(%dk)", tokens/1000)
-	default:
-		return fmt.Sprintf("(%dk)", tokens/1000)
 	}
+	return fmt.Sprintf("(%dk)", tokens/1000)
 }
 
 func (sl *StatusLine) renderContext() string {
@@ -381,7 +377,7 @@ func (sl *StatusLine) calculateContextPctLegacy() int {
 	usage := sl.input.Context.CurrentUsage
 	windowSize := sl.input.Context.ContextWindow
 	if windowSize == 0 {
-		windowSize = 200000
+		windowSize = 200000 // Default
 	}
 
 	// Get autocompact buffer from config (default 22.5%)
