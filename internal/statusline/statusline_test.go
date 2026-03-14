@@ -1342,27 +1342,9 @@ func TestRenderCost_NoCacheIndicatorWhenZero(t *testing.T) {
 }
 
 func TestDefaultContextWindow(t *testing.T) {
-	tests := []struct {
-		model    string
-		expected int
-	}{
-		{"Opus 4.6", 1000000},
-		{"Sonnet 4.6", 1000000},
-		{"opus 4.6", 1000000},
-		{"Claude Opus 4.6", 1000000},
-		{"Opus 4.5", 200000},
-		{"Sonnet 4", 200000},
-		{"Haiku 3.5", 200000},
-		{"", 200000},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.model, func(t *testing.T) {
-			got := defaultContextWindow(tt.model)
-			if got != tt.expected {
-				t.Errorf("defaultContextWindow(%q) = %d, want %d", tt.model, got, tt.expected)
-			}
-		})
+	got := defaultContextWindow()
+	if got != 200000 {
+		t.Errorf("defaultContextWindow() = %d, want 200000", got)
 	}
 }
 
@@ -1407,35 +1389,19 @@ func TestRenderModel_ShowsContextWindow(t *testing.T) {
 	}
 }
 
-func TestRenderModel_InfersContextWindowFromModelName(t *testing.T) {
+func TestRenderModel_FallsBackTo200kWhenNotProvided(t *testing.T) {
 	sl := &StatusLine{
 		input: Input{
-			Model: ModelInfo{DisplayName: "Sonnet 4.6"},
+			Model: ModelInfo{DisplayName: "Opus 4.6"},
 			Context: ContextInfo{
-				ContextWindow: 0, // Not provided
-			},
-		},
-	}
-
-	result := sl.renderModel()
-	if !strings.Contains(result, "(1M)") {
-		t.Errorf("expected (1M) inferred from model name, got: %s", result)
-	}
-}
-
-func TestRenderModel_DefaultContextWindowForOlderModels(t *testing.T) {
-	sl := &StatusLine{
-		input: Input{
-			Model: ModelInfo{DisplayName: "Opus 4.5"},
-			Context: ContextInfo{
-				ContextWindow: 0,
+				ContextWindow: 0, // Not provided by Claude Code
 			},
 		},
 	}
 
 	result := sl.renderModel()
 	if !strings.Contains(result, "(200k)") {
-		t.Errorf("expected (200k) for older model, got: %s", result)
+		t.Errorf("expected (200k) fallback when context_window_size not provided, got: %s", result)
 	}
 }
 
@@ -1449,7 +1415,7 @@ func TestCalculateContextPctLegacy_1MWindow(t *testing.T) {
 				CurrentUsage: ContextUsage{
 					InputTokens: 100000,
 				},
-				ContextWindow: 0, // Not provided, should infer 1M
+				ContextWindow: 1000000, // Provided by Claude Code
 			},
 		},
 		config: config.Config{},
