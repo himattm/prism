@@ -327,13 +327,28 @@ func getMainRepoName(worktreeRoot string) string {
 }
 
 func (sl *StatusLine) renderModel() string {
-	name := sl.input.Model.DisplayName
+	name := trimContextSuffix(sl.input.Model.DisplayName)
 	windowSize := sl.input.Context.ContextWindow
 	if windowSize == 0 {
 		windowSize = 200000
 	}
 	suffix := formatContextWindowSize(windowSize)
 	return colors.Wrap(colors.Magenta, name+" "+suffix)
+}
+
+// trimContextSuffix removes trailing context-window text that Claude Code may
+// include in the display name, e.g. "Opus 4.6 (1M context)" → "Opus 4.6".
+// This prevents duplication when we append our own "(1M)" suffix.
+func trimContextSuffix(name string) string {
+	// Match patterns like " (1M context)", " (200k context)"
+	if idx := strings.LastIndex(name, " ("); idx >= 0 {
+		tail := name[idx:]
+		// To avoid false positives, also check that the suffix contains a digit.
+		if strings.HasSuffix(tail, " context)") && strings.ContainsAny(tail, "0123456789") {
+			return name[:idx]
+		}
+	}
+	return name
 }
 
 // formatContextWindowSize formats a token count as a compact label like "(1M)" or "(200k)".

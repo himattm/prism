@@ -1387,6 +1387,46 @@ func TestRenderModel_ShowsContextWindow(t *testing.T) {
 	}
 }
 
+func TestTrimContextSuffix(t *testing.T) {
+	tests := []struct {
+		input, expected string
+	}{
+		{"Opus 4.6 (1M context)", "Opus 4.6"},
+		{"Sonnet 4.6 (200k context)", "Sonnet 4.6"},
+		{"Haiku 4.5", "Haiku 4.5"},
+		{"Opus 4.6", "Opus 4.6"},
+		{"Claude (beta) (1M context)", "Claude (beta)"},
+		{"My Model (for some context)", "My Model (for some context)"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := trimContextSuffix(tt.input)
+			if got != tt.expected {
+				t.Errorf("trimContextSuffix(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRenderModel_TrimsContextSuffixFromDisplayName(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Model:   ModelInfo{DisplayName: "Opus 4.6 (1M context)"},
+			Context: ContextInfo{ContextWindow: 1000000},
+		},
+	}
+
+	result := sl.renderModel()
+	// Should NOT have duplicate: "Opus 4.6 (1M context) (1M)"
+	if strings.Contains(result, "context)") {
+		t.Errorf("should trim context suffix from display name, got: %s", result)
+	}
+	if !strings.Contains(result, "Opus 4.6") || !strings.Contains(result, "(1M)") {
+		t.Errorf("expected 'Opus 4.6 (1M)', got: %s", result)
+	}
+}
+
 func TestRenderModel_FallsBackTo200kWhenNotProvided(t *testing.T) {
 	sl := &StatusLine{
 		input: Input{
