@@ -343,7 +343,8 @@ func trimContextSuffix(name string) string {
 	// Match patterns like " (1M context)", " (200k context)"
 	if idx := strings.LastIndex(name, " ("); idx >= 0 {
 		tail := name[idx:]
-		if strings.HasSuffix(tail, " context)") {
+		// To avoid false positives, also check that the suffix contains a digit.
+		if strings.HasSuffix(tail, " context)") && strings.ContainsAny(tail, "0123456789") {
 			return name[:idx]
 		}
 	}

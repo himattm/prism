@@ -1396,6 +1396,7 @@ func TestTrimContextSuffix(t *testing.T) {
 		{"Haiku 4.5", "Haiku 4.5"},
 		{"Opus 4.6", "Opus 4.6"},
 		{"Claude (beta) (1M context)", "Claude (beta)"},
+		{"My Model (for some context)", "My Model (for some context)"},
 		{"", ""},
 	}
 	for _, tt := range tests {
