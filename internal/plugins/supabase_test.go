@@ -166,7 +166,7 @@ func TestSupabasePlugin_NoConfigToml(t *testing.T) {
 		},
 		Config: map[string]any{},
 		Colors: map[string]string{
-			"emerald": "[emerald]",
+			"supabase_green": "[supabase_green]",
 			"gray":    "[gray]",
 			"reset":   "[reset]",
 		},
@@ -303,7 +303,7 @@ func TestSupabasePlugin_Execute_Caching(t *testing.T) {
 	p.SetCache(c)
 
 	// Pre-populate cache
-	expectedOutput := "[emerald]⚡[reset]"
+	expectedOutput := "[supabase_green]⚡[reset]"
 	c.Set("supabase:output:/test/dir", expectedOutput, time.Minute)
 
 	ctx := context.Background()
@@ -313,7 +313,7 @@ func TestSupabasePlugin_Execute_Caching(t *testing.T) {
 		},
 		Config: map[string]any{},
 		Colors: map[string]string{
-			"emerald": "[emerald]",
+			"supabase_green": "[supabase_green]",
 			"gray":    "[gray]",
 			"reset":   "[reset]",
 		},

@@ -75,7 +75,7 @@ func (p *SupabasePlugin) Execute(ctx context.Context, input plugin.Input) (strin
 	}
 
 	// Build output
-	green := input.Colors["emerald"]
+	green := input.Colors["supabase_green"]
 	gray := input.Colors["gray"]
 	reset := input.Colors["reset"]
 
