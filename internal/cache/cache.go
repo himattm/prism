@@ -118,4 +118,5 @@ const (
 	ConfigTTL   = 10 * time.Second
 	WorktreeTTL = 5 * time.Minute // Worktree status rarely changes
 	SpotifyTTL  = 3 * time.Second // Fast enough for track changes
+	SupabaseTTL = 3 * time.Second // Local stack status can change
 )

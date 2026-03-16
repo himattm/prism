@@ -37,6 +37,7 @@ func NewRegistry() *Registry {
 	r.registerWithCache(&UsageBarsPlugin{})
 	r.registerWithCache(&UsageTextPlugin{})
 	r.registerWithCache(&UsagePlugin{})
+	r.registerWithCache(&SupabasePlugin{})
 
 	return r
 }
