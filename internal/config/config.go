@@ -35,7 +35,7 @@ func (c Config) GetAutocompactBuffer() float64 {
 func DefaultSectionLines() [][]string {
 	return [][]string{
 		{"dir", "model", "context", "usage", "git"},
-		{"supabase"},
+		{"supabase", "vercel"},
 		{"spotify"},
 	}
 }

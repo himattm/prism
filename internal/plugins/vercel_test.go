@@ -40,7 +40,6 @@ func TestParseVercelConfig(t *testing.T) {
 			expected: vercelConfig{
 				ShowURL:      false,
 				MaxURLLength: 30,
-				ShowBranch:   false,
 				ShowTeam:     false,
 			},
 		},
@@ -54,7 +53,6 @@ func TestParseVercelConfig(t *testing.T) {
 			expected: vercelConfig{
 				ShowURL:      true,
 				MaxURLLength: 30,
-				ShowBranch:   false,
 				ShowTeam:     false,
 			},
 		},
@@ -68,7 +66,6 @@ func TestParseVercelConfig(t *testing.T) {
 			expected: vercelConfig{
 				ShowURL:      false,
 				MaxURLLength: 50,
-				ShowBranch:   false,
 				ShowTeam:     false,
 			},
 		},
@@ -78,14 +75,12 @@ func TestParseVercelConfig(t *testing.T) {
 				"vercel": map[string]any{
 					"show_url":       true,
 					"max_url_length": float64(40),
-					"show_branch":    true,
 					"show_team":      true,
 				},
 			},
 			expected: vercelConfig{
 				ShowURL:      true,
 				MaxURLLength: 40,
-				ShowBranch:   true,
 				ShowTeam:     true,
 			},
 		},
@@ -99,9 +94,6 @@ func TestParseVercelConfig(t *testing.T) {
 			}
 			if result.MaxURLLength != tt.expected.MaxURLLength {
 				t.Errorf("MaxURLLength: expected %d, got %d", tt.expected.MaxURLLength, result.MaxURLLength)
-			}
-			if result.ShowBranch != tt.expected.ShowBranch {
-				t.Errorf("ShowBranch: expected %v, got %v", tt.expected.ShowBranch, result.ShowBranch)
 			}
 			if result.ShowTeam != tt.expected.ShowTeam {
 				t.Errorf("ShowTeam: expected %v, got %v", tt.expected.ShowTeam, result.ShowTeam)
@@ -241,16 +233,6 @@ func TestFormatVercelOutput(t *testing.T) {
 			expected: "[emerald]▲ ready my-very-long-app-na…[reset]",
 		},
 		{
-			name: "with branch",
-			deploy: func() *vercelDeployment {
-				d := &vercelDeployment{State: "READY"}
-				d.Meta.GithubCommitRef = "main"
-				return d
-			}(),
-			cfg:      vercelConfig{ShowBranch: true},
-			expected: "[emerald]▲ ready (main)[reset]",
-		},
-		{
 			name:     "with team",
 			deploy:   &vercelDeployment{State: "READY"},
 			cfg:      vercelConfig{ShowTeam: true},
@@ -258,15 +240,11 @@ func TestFormatVercelOutput(t *testing.T) {
 			expected: "[emerald]▲ my-team: ready[reset]",
 		},
 		{
-			name: "all options",
-			deploy: func() *vercelDeployment {
-				d := &vercelDeployment{State: "BUILDING", URL: "app.vercel.app"}
-				d.Meta.GithubCommitRef = "feat/new"
-				return d
-			}(),
-			cfg:      vercelConfig{ShowURL: true, MaxURLLength: 30, ShowBranch: true, ShowTeam: true},
+			name:     "all options",
+			deploy:   &vercelDeployment{State: "BUILDING", URL: "app.vercel.app"},
+			cfg:      vercelConfig{ShowURL: true, MaxURLLength: 30, ShowTeam: true},
 			team:     "acme",
-			expected: "[yellow]▲ acme: building app.vercel.app (feat/new)[reset]",
+			expected: "[yellow]▲ acme: building app.vercel.app[reset]",
 		},
 	}
 

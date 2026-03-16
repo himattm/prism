@@ -31,9 +31,6 @@ type vercelDeployment struct {
 	Name  string `json:"name"`
 	State string `json:"state"` // BUILDING, READY, ERROR, QUEUED, CANCELED
 	URL   string `json:"url"`
-	Meta  struct {
-		GithubCommitRef string `json:"githubCommitRef"`
-	} `json:"meta"`
 }
 
 // vercelDeploymentsResponse is the response from /v6/deployments
@@ -45,7 +42,6 @@ type vercelDeploymentsResponse struct {
 type vercelConfig struct {
 	ShowURL      bool
 	MaxURLLength int
-	ShowBranch   bool
 	ShowTeam     bool
 }
 
@@ -188,7 +184,6 @@ func parseVercelConfig(config map[string]any) vercelConfig {
 	cfg := vercelConfig{
 		ShowURL:      false,
 		MaxURLLength: 30,
-		ShowBranch:   false,
 		ShowTeam:     false,
 	}
 
@@ -202,9 +197,6 @@ func parseVercelConfig(config map[string]any) vercelConfig {
 	}
 	if v, ok := vercelCfg["max_url_length"].(float64); ok {
 		cfg.MaxURLLength = int(v)
-	}
-	if v, ok := vercelCfg["show_branch"].(bool); ok {
-		cfg.ShowBranch = v
 	}
 	if v, ok := vercelCfg["show_team"].(bool); ok {
 		cfg.ShowTeam = v
@@ -262,13 +254,6 @@ func formatVercelOutput(input plugin.Input, deploy *vercelDeployment, cfg vercel
 		}
 		result.WriteString(" ")
 		result.WriteString(url)
-	}
-
-	// Optional branch
-	if cfg.ShowBranch && deploy.Meta.GithubCommitRef != "" {
-		result.WriteString(" (")
-		result.WriteString(deploy.Meta.GithubCommitRef)
-		result.WriteString(")")
 	}
 
 	result.WriteString(reset)
