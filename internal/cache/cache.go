@@ -116,7 +116,11 @@ const (
 	GitTTL      = 2 * time.Second
 	ProcessTTL  = 2 * time.Second
 	ConfigTTL   = 10 * time.Second
-	WorktreeTTL = 5 * time.Minute // Worktree status rarely changes
-	SpotifyTTL  = 3 * time.Second // Fast enough for track changes
-	SupabaseTTL = 3 * time.Second // Local stack status can change
+	WorktreeTTL      = 5 * time.Minute // Worktree status rarely changes
+	SpotifyTTL       = 3 * time.Second // Fast enough for track changes
+	SupabaseTTL      = 3 * time.Second // Local stack status can change
+	VercelDeployTTL  = 10 * time.Second
+	VercelBuildTTL   = 3 * time.Second  // Faster polling during transient states
+	VercelProjectTTL = 5 * time.Minute  // Project linkage rarely changes
+	VercelTeamTTL    = 5 * time.Minute  // Team/user context rarely changes
 )
