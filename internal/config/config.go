@@ -25,8 +25,13 @@ func (c Config) GetAutocompactBuffer() float64 {
 	return *c.AutocompactBuffer
 }
 
-// DefaultSectionLines returns the default multi-line section layout
-// This is the single source of truth for default sections
+// DefaultSectionLines returns the default multi-line section layout.
+// This is the single source of truth for default sections.
+//
+// Lines are organized by concern:
+//   - Line 1: Agent harness — dir, model, context window, token usage, and git branch
+//   - Line 2: Project tooling — supabase, vercel, android, and other dev stack plugins
+//   - Line 3: Auxiliary — ambient info like now-playing music
 func DefaultSectionLines() [][]string {
 	return [][]string{
 		{"dir", "model", "context", "usage", "git"},
