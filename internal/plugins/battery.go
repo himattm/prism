@@ -1,10 +1,13 @@
 package plugins
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -112,23 +115,44 @@ func getBatteryLinux() (int, bool) {
 	return -1, false
 }
 
-// getBatteryDarwin reads battery info on macOS
+// batteryPctRe matches "42%" in pmset output
+var batteryPctRe = regexp.MustCompile(`(\d+)%`)
+
+// getBatteryDarwin parses `pmset -g batt` output on macOS.
+// Example output:
+//
+//	Now drawing from 'Battery Power'
+//	 -InternalBattery-0 (id=...)	85%; discharging; 3:42 remaining
 func getBatteryDarwin() (int, bool) {
-	// Try cached value from pmset (would need subprocess for live reading)
-	data, err := os.ReadFile("/tmp/prism-bat-darwin.cache")
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "pmset", "-g", "batt")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return -1, false
+	}
+
+	output := out.String()
+
+	// Find percentage
+	match := batteryPctRe.FindStringSubmatch(output)
+	if match == nil {
+		return -1, false
+	}
+	pct, err := strconv.Atoi(match[1])
 	if err != nil {
 		return -1, false
 	}
-	// Format: "pct,charging" e.g. "85,1" or "42,0"
-	parts := strings.Split(strings.TrimSpace(string(data)), ",")
-	if len(parts) != 2 {
-		return -1, false
+
+	// Detect charging: look for "charging" but not "discharging"
+	charging := strings.Contains(output, "charging") && !strings.Contains(output, "discharging")
+	// Also treat "AC Power" with "charged" as charging/full
+	if strings.Contains(output, "charged") {
+		charging = true
 	}
-	pct, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return -1, false
-	}
-	charging := parts[1] == "1"
+
 	return clamp(pct, 0, 100), charging
 }
 

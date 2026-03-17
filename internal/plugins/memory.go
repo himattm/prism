@@ -1,8 +1,10 @@
 package plugins
 
 import (
+	"bytes"
 	"context"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -96,18 +98,68 @@ func getMemPercentLinux() int {
 	return clamp(int(used*100/memTotal), 0, 100)
 }
 
-// getMemPercentDarwin uses vm_stat output (would need subprocess)
-// For now, falls back to reading cached value or returning -1
+// getMemPercentDarwin parses vm_stat and sysctl to compute memory usage on macOS.
+// vm_stat reports pages; we multiply by page size and compare to total physical memory.
 func getMemPercentDarwin() int {
-	// On macOS we'd need to call vm_stat or use syscall
-	// For cross-platform simplicity, try /tmp cache file first
-	data, err := os.ReadFile("/tmp/prism-mem-darwin.cache")
-	if err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+
+	// Get total physical memory
+	totalCmd := exec.CommandContext(ctx, "sysctl", "-n", "hw.memsize")
+	var totalOut bytes.Buffer
+	totalCmd.Stdout = &totalOut
+	if err := totalCmd.Run(); err != nil {
 		return -1
 	}
-	pct, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
+	totalBytes, err := strconv.ParseInt(strings.TrimSpace(totalOut.String()), 10, 64)
+	if err != nil || totalBytes == 0 {
 		return -1
 	}
-	return clamp(pct, 0, 100)
+
+	// Get vm_stat output
+	vmCmd := exec.CommandContext(ctx, "vm_stat")
+	var vmOut bytes.Buffer
+	vmCmd.Stdout = &vmOut
+	if err := vmCmd.Run(); err != nil {
+		return -1
+	}
+
+	// Parse page size from first line: "Mach Virtual Memory Statistics: (page size of 16384 bytes)"
+	lines := strings.Split(vmOut.String(), "\n")
+	pageSize := int64(16384) // default for Apple Silicon
+	if len(lines) > 0 {
+		if idx := strings.Index(lines[0], "page size of "); idx >= 0 {
+			rest := lines[0][idx+len("page size of "):]
+			if sp := strings.Index(rest, " "); sp > 0 {
+				if ps, err := strconv.ParseInt(rest[:sp], 10, 64); err == nil {
+					pageSize = ps
+				}
+			}
+		}
+	}
+
+	// Parse page counts: "Pages free: 12345."
+	pages := make(map[string]int64)
+	for _, line := range lines[1:] {
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		valStr := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(parts[1]), "."))
+		if v, err := strconv.ParseInt(valStr, 10, 64); err == nil {
+			pages[key] = v
+		}
+	}
+
+	// Free + inactive + speculative + purgeable ≈ available
+	available := (pages["Pages free"] + pages["Pages inactive"] +
+		pages["Pages speculative"] + pages["Pages purgeable"]) * pageSize
+
+	used := totalBytes - available
+	if used < 0 {
+		used = 0
+	}
+
+	return clamp(int(used*100/totalBytes), 0, 100)
 }

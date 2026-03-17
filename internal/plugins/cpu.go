@@ -1,9 +1,11 @@
 package plugins
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -138,30 +140,49 @@ func getCPUPercentLinux(c *cache.Cache) int {
 	return int((dTotal - dIdle) * 100 / dTotal)
 }
 
-// getCPUPercentDarwin uses host_processor_info via sysctl on macOS
+// getCPUPercentDarwin sums per-process CPU% via ps and normalizes by core count.
+// This is instantaneous (no multi-sample delay) and stays within the 500ms plugin timeout.
 func getCPUPercentDarwin() int {
-	// Read from /usr/bin/ps as a quick approximation
-	// This sums CPU% across all processes (can exceed 100% on multi-core)
-	data, err := os.ReadFile("/tmp/prism-cpu-darwin.cache")
-	if err != nil {
-		// Fallback: use load average as a rough proxy
-		return getCPUFromLoadAvg()
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "ps", "-A", "-o", "%cpu")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return getCPUFromLoadAvgDarwin()
 	}
-	pct, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return getCPUFromLoadAvg()
+
+	var total float64
+	for _, line := range strings.Split(out.String(), "\n") {
+		line = strings.TrimSpace(line)
+		if v, err := strconv.ParseFloat(line, 64); err == nil {
+			total += v
+		}
 	}
-	return clamp(pct, 0, 100)
+
+	cpus := runtime.NumCPU()
+	if cpus == 0 {
+		cpus = 1
+	}
+	return clamp(int(total/float64(cpus)), 0, 100)
 }
 
-// getCPUFromLoadAvg reads /proc/loadavg (Linux) or uses sysctl (macOS)
-// and normalizes by CPU count as a rough CPU% estimate
-func getCPUFromLoadAvg() int {
-	data, err := os.ReadFile("/proc/loadavg")
-	if err != nil {
+// getCPUFromLoadAvgDarwin uses sysctl to read load average on macOS
+func getCPUFromLoadAvgDarwin() int {
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "sysctl", "-n", "vm.loadavg")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
 		return -1
 	}
-	fields := strings.Fields(string(data))
+
+	// Output: "{ 1.23 1.45 1.67 }"
+	result := strings.Trim(strings.TrimSpace(out.String()), "{ }")
+	fields := strings.Fields(result)
 	if len(fields) == 0 {
 		return -1
 	}
@@ -173,8 +194,7 @@ func getCPUFromLoadAvg() int {
 	if cpus == 0 {
 		cpus = 1
 	}
-	pct := int(load * 100 / float64(cpus))
-	return clamp(pct, 0, 100)
+	return clamp(int(load*100/float64(cpus)), 0, 100)
 }
 
 func clamp(v, min, max int) int {
