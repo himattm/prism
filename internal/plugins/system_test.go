@@ -192,8 +192,8 @@ func TestSparkColor(t *testing.T) {
 	input := testInput("test-color")
 
 	tests := []struct {
-		pct      int
-		wantKey  string
+		pct     int
+		wantKey string
 	}{
 		{0, "gray"},
 		{50, "gray"},
