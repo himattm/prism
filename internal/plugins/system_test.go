@@ -163,12 +163,6 @@ func TestClamp(t *testing.T) {
 func TestFormatSparkMetric(t *testing.T) {
 	input := testInput("test-format")
 
-	// Create a mock buffer with known values
-	buf := &sparklineBuffer{}
-	buf.push(25)
-	buf.push(50)
-	buf.push(75)
-
 	// Test via the real formatSparkMetric - need a real sparkline.Buffer
 	// Just verify it doesn't panic with various percentages
 	for _, pct := range []int{0, 25, 50, 69, 70, 89, 90, 100} {
@@ -177,15 +171,6 @@ func TestFormatSparkMetric(t *testing.T) {
 			t.Errorf("sparkColor returned empty for pct=%d", pct)
 		}
 	}
-}
-
-// sparklineBuffer is a test helper wrapping sparkline operations
-type sparklineBuffer struct {
-	values []int
-}
-
-func (b *sparklineBuffer) push(v int) {
-	b.values = append(b.values, v)
 }
 
 func TestSparkColor(t *testing.T) {

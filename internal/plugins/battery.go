@@ -164,7 +164,8 @@ func formatBatteryMetric(input plugin.Input, label string, buf *sparkline.Buffer
 	if charging {
 		color = input.Colors["emerald"]
 	} else {
-		color = sparkColor(input, pct)
+		// Invert: low battery is critical, high is healthy
+		color = sparkColor(input, 100-pct)
 	}
 
 	spark := buf.Render()

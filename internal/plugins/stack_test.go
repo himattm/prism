@@ -227,7 +227,8 @@ func TestDetectStack_PythonProject(t *testing.T) {
 
 func TestDetectStack_DjangoSuppressesPython(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "manage.py"), []byte(""), 0644)
+	os.MkdirAll(filepath.Join(dir, "config"), 0755)
+	os.WriteFile(filepath.Join(dir, "config/urls.py"), []byte(""), 0644)
 	os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[project]"), 0644)
 
 	cfg := stackConfig{maxItems: 10}

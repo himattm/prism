@@ -161,16 +161,20 @@ var allRules = []detectionRule{
 		PkgJSON: []string{"@angular/core"},
 	},
 	{
+		// manage.py alone is too broad (any Python script can be named this).
+		// Use Django-specific project structure markers instead.
 		Item:  stackItem{Name: "Django", Category: "framework", Color: "dark_green"},
-		Files: []string{"manage.py"},
+		Files: []string{"config/urls.py", "config/wsgi.py", "config/settings.py"},
 	},
 	{
+		// wsgi.py alone is generic WSGI, not Flask-specific.
+		// .flaskenv is a Flask-specific configuration file.
 		Item:  stackItem{Name: "Flask", Category: "framework", Color: "white"},
-		Files: []string{"wsgi.py"},
+		Files: []string{".flaskenv"},
 	},
 	{
 		Item:  stackItem{Name: "Rails", Category: "framework", Color: "red"},
-		Files: []string{"Gemfile", "config/routes.rb"},
+		Files: []string{"config/routes.rb"},
 	},
 	{
 		Item:  stackItem{Name: "Laravel", Category: "framework", Color: "red"},

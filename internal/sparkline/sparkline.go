@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -94,9 +95,11 @@ var (
 	buffers = make(map[string]*Buffer) // in-memory cache of loaded buffers
 )
 
-// cacheFilePath returns the path for a given metric's sparkline buffer
+// cacheFilePath returns the path for a given metric's sparkline buffer.
+// Path separators are stripped from sessionID to prevent directory traversal.
 func cacheFilePath(sessionID, metric string) string {
-	return filepath.Join(os.TempDir(), fmt.Sprintf("prism-spark-%s-%s.json", metric, sessionID))
+	safe := strings.ReplaceAll(strings.ReplaceAll(sessionID, "/", ""), "\\", "")
+	return filepath.Join(os.TempDir(), fmt.Sprintf("prism-spark-%s-%s.json", metric, safe))
 }
 
 // Load reads a buffer from disk (or returns a cached in-memory copy).
@@ -132,7 +135,11 @@ func Save(sessionID, metric string, b *Buffer) {
 	if err != nil {
 		return
 	}
-	os.WriteFile(path, data, 0644)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
+		return
+	}
+	os.Rename(tmp, path)
 }
 
 // PushAndSave is a convenience that loads, pushes, saves, and returns the buffer
