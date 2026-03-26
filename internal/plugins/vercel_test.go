@@ -2,8 +2,12 @@ package plugins
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -371,4 +375,303 @@ func TestVercelPlugin_Execute_NoVercelCLI(t *testing.T) {
 	if result != "" {
 		t.Errorf("expected empty result when vercel not installed, got '%s'", result)
 	}
+}
+
+// --- CLI interaction tests using mock scripts ---
+
+// createMockScript creates a temporary executable script that prints the given
+// stdout content and exits with the given code. Returns the path to the script.
+func createMockScript(t *testing.T, stdout string, exitCode int) string {
+	t.Helper()
+	tmpDir := t.TempDir()
+	var scriptPath string
+	if runtime.GOOS == "windows" {
+		scriptPath = filepath.Join(tmpDir, "mock-vercel.bat")
+		content := fmt.Sprintf("@echo off\necho %s\nexit /b %d", stdout, exitCode)
+		if err := os.WriteFile(scriptPath, []byte(content), 0755); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		scriptPath = filepath.Join(tmpDir, "mock-vercel")
+		content := fmt.Sprintf("#!/bin/sh\nprintf '%%s' '%s'\nexit %d", stdout, exitCode)
+		if err := os.WriteFile(scriptPath, []byte(content), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return scriptPath
+}
+
+// createMockStderrScript creates a script that writes to both stdout and stderr.
+func createMockStderrScript(t *testing.T, stdout, stderr string, exitCode int) string {
+	t.Helper()
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "mock-vercel")
+	content := fmt.Sprintf("#!/bin/sh\nprintf '%%s' '%s'\nprintf '%%s' '%s' >&2\nexit %d", stdout, stderr, exitCode)
+	if err := os.WriteFile(scriptPath, []byte(content), 0755); err != nil {
+		t.Fatal(err)
+	}
+	return scriptPath
+}
+
+func TestGetLatestVercelDeployment_Success(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	jsonResponse := `{"deployments":[{"uid":"dpl_abc123","name":"my-app","state":"READY","url":"my-app-abc.vercel.app"}]}`
+	mockPath := createMockScript(t, jsonResponse, 0)
+
+	ctx := context.Background()
+	deployment, err := getLatestVercelDeployment(ctx, mockPath, "prj_test123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deployment == nil {
+		t.Fatal("expected non-nil deployment")
+	}
+	if deployment.UID != "dpl_abc123" {
+		t.Errorf("expected UID 'dpl_abc123', got '%s'", deployment.UID)
+	}
+	if deployment.Name != "my-app" {
+		t.Errorf("expected Name 'my-app', got '%s'", deployment.Name)
+	}
+	if deployment.State != "READY" {
+		t.Errorf("expected State 'READY', got '%s'", deployment.State)
+	}
+	if deployment.URL != "my-app-abc.vercel.app" {
+		t.Errorf("expected URL 'my-app-abc.vercel.app', got '%s'", deployment.URL)
+	}
+}
+
+func TestGetLatestVercelDeployment_EmptyDeployments(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	jsonResponse := `{"deployments":[]}`
+	mockPath := createMockScript(t, jsonResponse, 0)
+
+	ctx := context.Background()
+	deployment, err := getLatestVercelDeployment(ctx, mockPath, "prj_test123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deployment != nil {
+		t.Errorf("expected nil deployment for empty list, got %+v", deployment)
+	}
+}
+
+func TestGetLatestVercelDeployment_CLIError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	mockPath := createMockStderrScript(t, "", "authentication required", 1)
+
+	ctx := context.Background()
+	deployment, err := getLatestVercelDeployment(ctx, mockPath, "prj_test123")
+	if err == nil {
+		t.Fatal("expected error when CLI fails")
+	}
+	if deployment != nil {
+		t.Errorf("expected nil deployment on error, got %+v", deployment)
+	}
+	// Verify stderr content is included in error message
+	if !strings.Contains(err.Error(), "authentication required") {
+		t.Errorf("expected error to contain stderr output, got: %v", err)
+	}
+}
+
+func TestGetLatestVercelDeployment_InvalidJSON(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	mockPath := createMockScript(t, "not valid json at all", 0)
+
+	ctx := context.Background()
+	deployment, err := getLatestVercelDeployment(ctx, mockPath, "prj_test123")
+	if err == nil {
+		t.Fatal("expected error for invalid JSON response")
+	}
+	if deployment != nil {
+		t.Errorf("expected nil deployment for invalid JSON, got %+v", deployment)
+	}
+}
+
+func TestGetLatestVercelDeployment_BuildingState(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	jsonResponse := `{"deployments":[{"uid":"dpl_build1","name":"my-app","state":"BUILDING","url":""}]}`
+	mockPath := createMockScript(t, jsonResponse, 0)
+
+	ctx := context.Background()
+	deployment, err := getLatestVercelDeployment(ctx, mockPath, "prj_test123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deployment == nil {
+		t.Fatal("expected non-nil deployment")
+	}
+	if deployment.State != "BUILDING" {
+		t.Errorf("expected State 'BUILDING', got '%s'", deployment.State)
+	}
+}
+
+func TestGetLatestVercelDeployment_ContextCanceled(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	// Create a script that sleeps for a long time
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "mock-vercel-slow")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nsleep 30"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	deployment, err := getLatestVercelDeployment(ctx, scriptPath, "prj_test123")
+	if err == nil {
+		t.Fatal("expected error when context is canceled")
+	}
+	if deployment != nil {
+		t.Errorf("expected nil deployment on canceled context, got %+v", deployment)
+	}
+}
+
+func TestGetVercelTeam_Success(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	mockPath := createMockScript(t, "my-team-name", 0)
+
+	p := &VercelPlugin{}
+	c := cache.New()
+	p.SetCache(c)
+
+	ctx := context.Background()
+	team := p.getVercelTeam(ctx, mockPath)
+	if team != "my-team-name" {
+		t.Errorf("expected team 'my-team-name', got '%s'", team)
+	}
+
+	// Verify it was cached
+	if cached, ok := c.Get("vercel:team"); !ok || cached != "my-team-name" {
+		t.Errorf("expected team to be cached, got cached=%s, ok=%v", cached, ok)
+	}
+}
+
+func TestGetVercelTeam_CLIError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	mockPath := createMockStderrScript(t, "", "not logged in", 1)
+
+	p := &VercelPlugin{}
+	c := cache.New()
+	p.SetCache(c)
+
+	ctx := context.Background()
+	team := p.getVercelTeam(ctx, mockPath)
+	if team != "" {
+		t.Errorf("expected empty team on error, got '%s'", team)
+	}
+
+	// Verify nothing was cached
+	if _, ok := c.Get("vercel:team"); ok {
+		t.Error("team should not be cached on error")
+	}
+}
+
+func TestGetVercelTeam_UsesCache(t *testing.T) {
+	p := &VercelPlugin{}
+	c := cache.New()
+	p.SetCache(c)
+
+	// Pre-populate cache
+	c.Set("vercel:team", "cached-team", time.Minute)
+
+	ctx := context.Background()
+	// Pass a non-existent path; if cache works, it won't even try to run it
+	team := p.getVercelTeam(ctx, "/nonexistent/vercel")
+	if team != "cached-team" {
+		t.Errorf("expected cached team 'cached-team', got '%s'", team)
+	}
+}
+
+func TestGetVercelTeam_TrimsWhitespace(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	// Create script that outputs team name with trailing whitespace/newlines
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "mock-vercel")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nprintf 'my-team\\n  '"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	p := &VercelPlugin{}
+	c := cache.New()
+	p.SetCache(c)
+
+	ctx := context.Background()
+	team := p.getVercelTeam(ctx, scriptPath)
+	if team != "my-team" {
+		t.Errorf("expected trimmed team 'my-team', got '%s'", team)
+	}
+}
+
+func TestGetLatestVercelDeployment_CommandArgs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping shell script test on Windows")
+	}
+
+	// Create a script that echoes the arguments it receives, so we can verify
+	// the correct args are passed to the vercel CLI
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "mock-vercel")
+	// Script writes args to a file, then outputs valid JSON
+	argsFile := filepath.Join(tmpDir, "args.txt")
+	scriptContent := fmt.Sprintf(`#!/bin/sh
+echo "$@" > %s
+printf '{"deployments":[]}'
+`, argsFile)
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	_, err := getLatestVercelDeployment(ctx, scriptPath, "prj_myproject")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Read the captured args
+	argsData, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("failed to read args file: %v", err)
+	}
+	args := strings.TrimSpace(string(argsData))
+	expectedArgs := "api /v6/deployments?limit=1&projectId=prj_myproject"
+	if args != expectedArgs {
+		t.Errorf("expected args '%s', got '%s'", expectedArgs, args)
+	}
+}
+
+// verifyVercelCLIExists checks if the vercel CLI is available for integration tests
+func verifyVercelCLIExists(t *testing.T) string {
+	t.Helper()
+	path, err := exec.LookPath("vercel")
+	if err != nil {
+		t.Skip("vercel CLI not available, skipping integration test")
+	}
+	return path
 }

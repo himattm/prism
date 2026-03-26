@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -134,11 +135,12 @@ func readVercelProject(projectDir string) (*vercelProject, error) {
 func getLatestVercelDeployment(ctx context.Context, vercelPath, projectID string) (*vercelDeployment, error) {
 	cmd := exec.CommandContext(ctx, vercelPath, "api", "/v6/deployments?limit=1&projectId="+projectID)
 	var out bytes.Buffer
+	var stderr bytes.Buffer
 	cmd.Stdout = &out
-	cmd.Stderr = nil
+	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 
 	var response vercelDeploymentsResponse
@@ -165,7 +167,7 @@ func (p *VercelPlugin) getVercelTeam(ctx context.Context, vercelPath string) str
 	cmd := exec.CommandContext(ctx, vercelPath, "whoami")
 	var out bytes.Buffer
 	cmd.Stdout = &out
-	cmd.Stderr = nil
+	cmd.Stderr = &bytes.Buffer{} // Capture stderr for debuggability
 
 	if err := cmd.Run(); err != nil {
 		return ""
