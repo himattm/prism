@@ -151,6 +151,77 @@ func TestParseMigrationOutput(t *testing.T) {
 	}
 }
 
+func TestParseStatusOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		output   string
+		expected bool
+	}{
+		{
+			name:     "empty string",
+			output:   "",
+			expected: false,
+		},
+		{
+			name:     "whitespace only",
+			output:   "   \n\t  ",
+			expected: false,
+		},
+		{
+			name:     "null literal",
+			output:   "null",
+			expected: false,
+		},
+		{
+			name:     "null with whitespace",
+			output:   "  null\n",
+			expected: false,
+		},
+		{
+			name:     "empty JSON object",
+			output:   "{}",
+			expected: false,
+		},
+		{
+			name:     "invalid JSON",
+			output:   "not json at all",
+			expected: false,
+		},
+		{
+			name:     "valid status with services",
+			output:   `{"API_URL":"http://127.0.0.1:54321","DB_URL":"postgresql://postgres:postgres@127.0.0.1:54322/postgres","STUDIO_URL":"http://127.0.0.1:54323"}`,
+			expected: true,
+		},
+		{
+			name: "valid status with whitespace",
+			output: `  {
+				"API_URL": "http://127.0.0.1:54321",
+				"DB_URL": "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+			}  `,
+			expected: true,
+		},
+		{
+			name:     "JSON array instead of object",
+			output:   `["something"]`,
+			expected: false,
+		},
+		{
+			name:     "JSON string instead of object",
+			output:   `"running"`,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseStatusOutput(tt.output)
+			if result != tt.expected {
+				t.Errorf("parseStatusOutput(%q) = %v, want %v", tt.output, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestSupabasePlugin_NoConfigToml(t *testing.T) {
 	p := &SupabasePlugin{}
 	c := cache.New()

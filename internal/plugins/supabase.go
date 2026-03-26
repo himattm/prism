@@ -3,6 +3,7 @@ package plugins
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -153,8 +154,27 @@ func (p *SupabasePlugin) checkLocalStatus(ctx context.Context, supabasePath, pro
 		return false
 	}
 
-	// If the command succeeds and produces output, the stack is running
-	return out.Len() > 0
+	return parseStatusOutput(out.String())
+}
+
+// parseStatusOutput determines if the Supabase local stack is running based on
+// the JSON output from `supabase status --output json`. Returns false for empty
+// strings, "null", empty JSON objects, and invalid JSON. Returns true only when
+// the output contains a valid JSON object with at least one meaningful key
+// (e.g., "API_URL", "DB_URL").
+func parseStatusOutput(output string) bool {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" || trimmed == "null" {
+		return false
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil {
+		return false
+	}
+
+	// An empty object means no services are running
+	return len(parsed) > 0
 }
 
 // countPendingMigrations runs `supabase migration list` and counts unapplied migrations
