@@ -9,6 +9,7 @@ import (
 	"github.com/himattm/prism/internal/burnrate"
 	"github.com/himattm/prism/internal/cache"
 	"github.com/himattm/prism/internal/plugin"
+	"github.com/himattm/prism/internal/tokens"
 )
 
 // UsagePlugin is a unified plugin that auto-detects billing type and renders
@@ -94,6 +95,14 @@ func (p *UsagePlugin) parseConfig(input plugin.Input) usageConfig {
 		}
 	}
 
+	// Clamp costDecimals to safe range
+	if cfg.costDecimals < 0 {
+		cfg.costDecimals = 0
+	}
+	if cfg.costDecimals > 10 {
+		cfg.costDecimals = 10
+	}
+
 	return cfg
 }
 
@@ -162,7 +171,7 @@ func (p *UsagePlugin) renderCost(input plugin.Input, cfg usageConfig) string {
 
 	// Append cache efficiency indicator if enabled
 	if cfg.showCache {
-		if ratio, ok := cacheRatio(input.Session.InputTokens, input.Session.CacheCreationTokens, input.Session.CacheReadTokens); ok {
+		if ratio, ok := tokens.CacheEfficiency(input.Session.InputTokens, input.Session.CacheCreationTokens, input.Session.CacheReadTokens); ok {
 			costStr += fmt.Sprintf(" ⌁%d%%", ratio)
 		}
 	}
@@ -173,19 +182,6 @@ func (p *UsagePlugin) renderCost(input plugin.Input, cfg usageConfig) string {
 	}
 
 	return fmt.Sprintf("%s%s%s", color, costStr, reset)
-}
-
-// cacheRatio calculates the cache read hit percentage.
-// Returns (ratio, true) if there are cache reads, or (0, false) if not applicable.
-func cacheRatio(inputTokens, cacheCreationTokens, cacheReadTokens int) (int, bool) {
-	if cacheReadTokens <= 0 {
-		return 0, false
-	}
-	denominator := inputTokens + cacheCreationTokens + cacheReadTokens
-	if denominator <= 0 {
-		return 0, false
-	}
-	return cacheReadTokens * 100 / denominator, true
 }
 
 // getBurnRateSuffix returns the burn rate suffix string (e.g., " ~$1.23/h") or empty string.

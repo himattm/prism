@@ -12,6 +12,7 @@ import (
 	"github.com/himattm/prism/internal/burnrate"
 	"github.com/himattm/prism/internal/colors"
 	"github.com/himattm/prism/internal/config"
+	"github.com/himattm/prism/internal/tokens"
 )
 
 // TestRenderLinesChanged_NeverUsesClaudeStats verifies that linesChanged
@@ -63,7 +64,9 @@ func TestRenderLinesChanged_WithUncommittedChanges(t *testing.T) {
 	// Stage the file so it shows in git diff HEAD
 	cmd := exec.Command("git", "add", "test.txt")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git add: %v", err)
+	}
 
 	sl := &StatusLine{
 		input: Input{
@@ -93,7 +96,9 @@ func TestRenderLinesChanged_IdleStateDoesNotAffectBehavior(t *testing.T) {
 
 	// Create an uncommitted change
 	testFile := filepath.Join(tmpDir, "test.txt")
-	os.WriteFile(testFile, []byte("hello\n"), 0644)
+	if err := os.WriteFile(testFile, []byte("hello\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 
 	claudeStats := CostInfo{
 		TotalLinesAdded:   100,
@@ -163,7 +168,9 @@ func TestGetGitDiffStats_WithChanges(t *testing.T) {
 
 	// Modify the existing file (adds lines, removes lines)
 	readmeFile := filepath.Join(tmpDir, "README.md")
-	os.WriteFile(readmeFile, []byte("new content\nline 2\nline 3\n"), 0644)
+	if err := os.WriteFile(readmeFile, []byte("new content\nline 2\nline 3\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 
 	added, removed := getGitDiffStats(tmpDir)
 
@@ -181,7 +188,9 @@ func TestGetGitDiffStats_NewUntrackedFile(t *testing.T) {
 
 	// Create a new untracked file (not staged)
 	newFile := filepath.Join(tmpDir, "untracked.txt")
-	os.WriteFile(newFile, []byte("untracked content\n"), 0644)
+	if err := os.WriteFile(newFile, []byte("untracked content\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 
 	added, removed := getGitDiffStats(tmpDir)
 
@@ -198,11 +207,15 @@ func TestGetGitDiffStats_StagedChanges(t *testing.T) {
 
 	// Create and stage a new file
 	newFile := filepath.Join(tmpDir, "staged.txt")
-	os.WriteFile(newFile, []byte("line1\nline2\n"), 0644)
+	if err := os.WriteFile(newFile, []byte("line1\nline2\n"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
 
 	cmd := exec.Command("git", "add", "staged.txt")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to git add: %v", err)
+	}
 
 	added, removed := getGitDiffStats(tmpDir)
 
@@ -470,6 +483,63 @@ func TestCalculateContextPct_FallsBackToLegacy(t *testing.T) {
 	// 40000 / (200000 * 0.775) = 25% (with 22.5% autocompact buffer)
 	if pct != 25 {
 		t.Errorf("calculateContextPct should fall back to legacy (25%%), got: %d", pct)
+	}
+}
+
+// TestCalculateContextPct_OnlyRemainingPercentage verifies correct calculation
+// when only RemainingPercentage is set (UsedPercentage is 0).
+func TestCalculateContextPct_OnlyRemainingPercentage(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Context: ContextInfo{
+				UsedPercentage:      0,
+				RemainingPercentage: 60.0,
+			},
+		},
+		config: config.Config{},
+	}
+
+	pct := sl.calculateContextPct()
+	if pct != 40 {
+		t.Errorf("calculateContextPct with RemainingPercentage=60 should return 40, got: %d", pct)
+	}
+}
+
+// TestCalculateContextPct_BothSet verifies UsedPercentage takes priority
+// when both UsedPercentage and RemainingPercentage are set.
+func TestCalculateContextPct_BothSet(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Context: ContextInfo{
+				UsedPercentage:      75.0,
+				RemainingPercentage: 30.0,
+			},
+		},
+		config: config.Config{},
+	}
+
+	pct := sl.calculateContextPct()
+	if pct != 75 {
+		t.Errorf("calculateContextPct with UsedPercentage=75 should return 75, got: %d", pct)
+	}
+}
+
+// TestCalculateContextPct_NeitherSet verifies fallback when both are zero.
+func TestCalculateContextPct_NeitherSet(t *testing.T) {
+	sl := &StatusLine{
+		input: Input{
+			Context: ContextInfo{
+				UsedPercentage:      0,
+				RemainingPercentage: 0,
+				ContextWindow:       0, // No legacy data either
+			},
+		},
+		config: config.Config{},
+	}
+
+	pct := sl.calculateContextPct()
+	if pct != 0 {
+		t.Errorf("calculateContextPct with neither set should return 0, got: %d", pct)
 	}
 }
 
@@ -1093,12 +1163,12 @@ func TestCacheRatio(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ratio, ok := cacheRatio(tt.input, tt.creation, tt.read)
+			ratio, ok := tokens.CacheEfficiency(tt.input, tt.creation, tt.read)
 			if ok != tt.expectedOK {
-				t.Errorf("cacheRatio(%d, %d, %d) ok = %v, want %v", tt.input, tt.creation, tt.read, ok, tt.expectedOK)
+				t.Errorf("CacheEfficiency(%d, %d, %d) ok = %v, want %v", tt.input, tt.creation, tt.read, ok, tt.expectedOK)
 			}
 			if ok && ratio != tt.expectedRatio {
-				t.Errorf("cacheRatio(%d, %d, %d) = %d, want %d", tt.input, tt.creation, tt.read, ratio, tt.expectedRatio)
+				t.Errorf("CacheEfficiency(%d, %d, %d) = %d, want %d", tt.input, tt.creation, tt.read, ratio, tt.expectedRatio)
 			}
 		})
 	}

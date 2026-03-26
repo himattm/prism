@@ -6,8 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
+
+var snapshotCache sync.Map
 
 // Snapshot stores the initial cost and timestamp for rate calculation.
 // Written to a temp file on first render, read on subsequent renders.
@@ -35,12 +38,18 @@ func LoadOrCreateSnapshotAt(sessionID string, currentCost float64, now time.Time
 		return nil, false, fmt.Errorf("empty session ID")
 	}
 
+	// Check in-memory cache first
+	if cached, ok := snapshotCache.Load(sessionID); ok {
+		return cached.(*Snapshot), true, nil
+	}
+
 	path := FilePath(sessionID)
 
 	data, err := os.ReadFile(path)
 	if err == nil {
 		var snap Snapshot
-		if err := json.Unmarshal(data, &snap); err == nil {
+		if err := json.Unmarshal(data, &snap); err == nil && !snap.Timestamp.IsZero() {
+			snapshotCache.Store(sessionID, &snap)
 			return &snap, true, nil
 		}
 	}
@@ -64,6 +73,7 @@ func LoadOrCreateSnapshotAt(sessionID string, currentCost float64, now time.Time
 		return nil, false, err
 	}
 
+	snapshotCache.Store(sessionID, snap)
 	return snap, false, nil
 }
 
@@ -73,14 +83,19 @@ func LoadSnapshot(sessionID string) *Snapshot {
 	if sessionID == "" {
 		return nil
 	}
+	// Check in-memory cache first
+	if cached, ok := snapshotCache.Load(sessionID); ok {
+		return cached.(*Snapshot)
+	}
 	data, err := os.ReadFile(FilePath(sessionID))
 	if err != nil {
 		return nil
 	}
 	var snap Snapshot
-	if err := json.Unmarshal(data, &snap); err != nil {
+	if err := json.Unmarshal(data, &snap); err != nil || snap.Timestamp.IsZero() {
 		return nil
 	}
+	snapshotCache.Store(sessionID, &snap)
 	return &snap
 }
 
@@ -119,10 +134,16 @@ func FormatRate(rate float64) string {
 	return fmt.Sprintf("~$%.2f/h", rate)
 }
 
-// Cleanup removes the burn rate snapshot file for a session.
+// ClearCache removes the in-memory cached snapshot for a session.
+func ClearCache(sessionID string) {
+	snapshotCache.Delete(sessionID)
+}
+
+// Cleanup removes the burn rate snapshot file and cache entry for a session.
 func Cleanup(sessionID string) {
 	if sessionID == "" {
 		return
 	}
+	ClearCache(sessionID)
 	os.Remove(FilePath(sessionID))
 }

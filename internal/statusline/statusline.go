@@ -15,8 +15,10 @@ import (
 	"github.com/himattm/prism/internal/colors"
 	"github.com/himattm/prism/internal/config"
 	"github.com/himattm/prism/internal/git"
+	"github.com/himattm/prism/internal/hooks"
 	"github.com/himattm/prism/internal/plugin"
 	"github.com/himattm/prism/internal/plugins"
+	"github.com/himattm/prism/internal/tokens"
 	"github.com/himattm/prism/internal/version"
 )
 
@@ -57,7 +59,7 @@ func (sl *StatusLine) discoverBashPlugins() []plugin.Plugin {
 }
 
 func checkIsIdle(sessionID string) bool {
-	idleFile := filepath.Join(os.TempDir(), fmt.Sprintf("prism-idle-%s", sessionID))
+	idleFile := hooks.IdleFilePath(sessionID)
 	if _, err := os.Stat(idleFile); err == nil {
 		return true
 	}
@@ -559,7 +561,7 @@ func (sl *StatusLine) renderCost() string {
 	showCache := sl.getConfigBool("show_cache", true)
 	if showCache {
 		usage := sl.input.Context.CurrentUsage
-		if ratio, ok := cacheRatio(usage.InputTokens, usage.CacheCreationTokens, usage.CacheReadTokens); ok {
+		if ratio, ok := tokens.CacheEfficiency(usage.InputTokens, usage.CacheCreationTokens, usage.CacheReadTokens); ok {
 			costStr += fmt.Sprintf(" ⌁%d%%", ratio)
 		}
 	}
@@ -596,19 +598,6 @@ func (sl *StatusLine) getConfigBool(key string, defVal bool) bool {
 		return defVal
 	}
 	return v
-}
-
-// cacheRatio calculates the cache read hit percentage.
-// Returns (ratio, true) if there are cache reads, or (0, false) if not applicable.
-func cacheRatio(inputTokens, cacheCreationTokens, cacheReadTokens int) (int, bool) {
-	if cacheReadTokens <= 0 {
-		return 0, false
-	}
-	denominator := inputTokens + cacheCreationTokens + cacheReadTokens
-	if denominator <= 0 {
-		return 0, false
-	}
-	return cacheReadTokens * 100 / denominator, true
 }
 
 func (sl *StatusLine) runPlugin(name string) string {
@@ -683,9 +672,17 @@ func (sl *StatusLine) runUpdatePlugin() string {
 func (sl *StatusLine) calculateContextPct() int {
 	// Prefer new pre-calculated percentage from Claude Code 2.1.6+
 	if sl.input.Context.UsedPercentage > 0 || sl.input.Context.RemainingPercentage > 0 {
-		pct := int(sl.input.Context.UsedPercentage)
+		var pct int
+		if sl.input.Context.UsedPercentage > 0 {
+			pct = int(sl.input.Context.UsedPercentage)
+		} else {
+			pct = int(100 - sl.input.Context.RemainingPercentage)
+		}
 		if pct > 100 {
 			pct = 100
+		}
+		if pct < 0 {
+			pct = 0
 		}
 		return pct
 	}

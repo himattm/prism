@@ -14,6 +14,12 @@ import (
 	"github.com/himattm/prism/internal/plugins"
 )
 
+// IdleFilePath returns the sanitized path for the idle marker file.
+func IdleFilePath(sessionID string) string {
+	safe := strings.ReplaceAll(strings.ReplaceAll(sessionID, "/", ""), "\\", "")
+	return filepath.Join(os.TempDir(), fmt.Sprintf("prism-idle-%s", safe))
+}
+
 // Input represents the JSON input from Claude Code hooks
 type Input struct {
 	SessionID string `json:"session_id"`
@@ -83,7 +89,7 @@ func (m *Manager) HandleIdle(input Input, rawInput []byte) error {
 
 	// 1. Create idle marker file
 	if input.SessionID != "" {
-		idleFile := filepath.Join(os.TempDir(), fmt.Sprintf("prism-idle-%s", input.SessionID))
+		idleFile := IdleFilePath(input.SessionID)
 		if err := os.WriteFile(idleFile, []byte{}, 0644); err != nil {
 			return err
 		}
@@ -122,7 +128,7 @@ func (m *Manager) HandleBusy(input Input, rawInput []byte) error {
 
 	// 1. Remove idle marker file
 	if input.SessionID != "" {
-		idleFile := filepath.Join(os.TempDir(), fmt.Sprintf("prism-idle-%s", input.SessionID))
+		idleFile := IdleFilePath(input.SessionID)
 		os.Remove(idleFile) // Ignore error if doesn't exist
 	}
 
@@ -180,7 +186,7 @@ func (m *Manager) HandleSessionEnd(input Input, rawInput []byte) error {
 
 	// Clean up idle marker file
 	if input.SessionID != "" {
-		idleFile := filepath.Join(os.TempDir(), fmt.Sprintf("prism-idle-%s", input.SessionID))
+		idleFile := IdleFilePath(input.SessionID)
 		os.Remove(idleFile)
 
 		// Clean up burn rate snapshot file

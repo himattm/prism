@@ -153,6 +153,86 @@ func TestLoadSnapshot_EmptySessionID(t *testing.T) {
 		t.Error("expected nil for empty session ID")
 	}
 }
+func TestLoadSnapshot_CorruptJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"invalid JSON", "not json at all"},
+		{"wrong structure", `{"foo": "bar"}`},
+		{"empty file", ""},
+		{"truncated JSON", `{"cost_usd": 1.5`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessionID := "test-corrupt-load-" + tt.name
+			path := FilePath(sessionID)
+			defer os.Remove(path)
+
+			if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("failed to write corrupt file: %v", err)
+			}
+
+			snap := LoadSnapshot(sessionID)
+			if snap != nil {
+				t.Errorf("LoadSnapshot should return nil for corrupt file (%s), got %+v", tt.name, snap)
+			}
+		})
+	}
+}
+
+func TestLoadOrCreateSnapshotAt_CorruptJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"invalid JSON", "not json at all"},
+		{"wrong structure", `{"foo": "bar"}`},
+		{"empty file", ""},
+		{"truncated JSON", `{"cost_usd": 1.5`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessionID := "test-corrupt-create-" + tt.name
+			path := FilePath(sessionID)
+			defer os.Remove(path)
+
+			if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("failed to write corrupt file: %v", err)
+			}
+
+			now := time.Now()
+			snap, existed, err := LoadOrCreateSnapshotAt(sessionID, 2.50, now)
+			if err != nil {
+				t.Fatalf("LoadOrCreateSnapshotAt should not error on corrupt file, got: %v", err)
+			}
+			if existed {
+				t.Error("existed should be false for corrupt file (treated as non-existent)")
+			}
+			if snap == nil {
+				t.Fatal("snap should not be nil")
+			}
+			if snap.CostUSD != 2.50 {
+				t.Errorf("expected cost 2.50, got %f", snap.CostUSD)
+			}
+
+			// Verify the corrupt file was overwritten with valid data
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("snapshot file should exist after recovery: %v", err)
+			}
+			var saved Snapshot
+			if err := json.Unmarshal(data, &saved); err != nil {
+				t.Fatalf("recovered snapshot should be valid JSON: %v", err)
+			}
+			if saved.CostUSD != 2.50 {
+				t.Errorf("recovered snapshot cost should be 2.50, got %f", saved.CostUSD)
+			}
+		})
+	}
+}
 
 func TestCalculateRate_TooEarly(t *testing.T) {
 	now := time.Now()
@@ -279,4 +359,74 @@ func TestCleanup_EmptySessionID(t *testing.T) {
 
 func TestCleanup_NonExistentFile(t *testing.T) {
 	Cleanup("nonexistent-session-id")
+}
+
+func TestCacheHitAvoidsDiskRead(t *testing.T) {
+	sessionID := "test-cache-hit-" + time.Now().Format("20060102150405")
+	defer ClearCache(sessionID)
+	defer os.Remove(FilePath(sessionID))
+
+	// Create a snapshot (populates cache and disk)
+	now := time.Now()
+	snap, _, err := LoadOrCreateSnapshotAt(sessionID, 5.00, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if snap.CostUSD != 5.00 {
+		t.Fatalf("expected cost 5.00, got %f", snap.CostUSD)
+	}
+
+	// Delete the file on disk
+	os.Remove(FilePath(sessionID))
+
+	// LoadSnapshot should still return the cached value
+	cached := LoadSnapshot(sessionID)
+	if cached == nil {
+		t.Fatal("expected cached snapshot after file deletion, got nil")
+	}
+	if cached.CostUSD != 5.00 {
+		t.Errorf("expected cached cost 5.00, got %f", cached.CostUSD)
+	}
+}
+
+func TestClearCacheInvalidates(t *testing.T) {
+	sessionID := "test-cache-clear-" + time.Now().Format("20060102150405")
+	defer ClearCache(sessionID)
+	defer os.Remove(FilePath(sessionID))
+
+	// Create a snapshot (populates cache and disk)
+	_, _, err := LoadOrCreateSnapshotAt(sessionID, 3.00, time.Now())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Clear cache, then delete the file
+	ClearCache(sessionID)
+	os.Remove(FilePath(sessionID))
+
+	// LoadSnapshot should return nil -- cache cleared and file gone
+	snap := LoadSnapshot(sessionID)
+	if snap != nil {
+		t.Errorf("expected nil after ClearCache + file deletion, got %+v", snap)
+	}
+}
+
+func TestCleanupClearsCache(t *testing.T) {
+	sessionID := "test-cleanup-cache-" + time.Now().Format("20060102150405")
+	defer ClearCache(sessionID)
+
+	// Create a snapshot (populates cache and disk)
+	_, _, err := LoadOrCreateSnapshotAt(sessionID, 7.00, time.Now())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Cleanup removes both file and cache
+	Cleanup(sessionID)
+
+	// LoadSnapshot should return nil
+	snap := LoadSnapshot(sessionID)
+	if snap != nil {
+		t.Errorf("expected nil after Cleanup, got %+v", snap)
+	}
 }

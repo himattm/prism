@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -61,5 +62,43 @@ func TestHandleSessionEnd_EmptySessionID(t *testing.T) {
 	err := m.HandleSessionEnd(input, nil)
 	if err != nil {
 		t.Fatalf("HandleSessionEnd should not error with empty session ID: %v", err)
+	}
+}
+
+func TestIdleFilePath(t *testing.T) {
+	path := IdleFilePath("test-session-123")
+	if path == "" {
+		t.Error("IdleFilePath returned empty string")
+	}
+	if !strings.Contains(path, "prism-idle-test-session-123") {
+		t.Errorf("expected path to contain 'prism-idle-test-session-123', got: %s", path)
+	}
+}
+
+func TestIdleFilePath_PathTraversal(t *testing.T) {
+	tests := []struct {
+		name      string
+		sessionID string
+	}{
+		{"dot-dot-slash", "../../../etc/passwd"},
+		{"forward-slash", "foo/bar/baz"},
+		{"backslash", `foo\bar\baz`},
+		{"mixed-separators", `../foo\bar/../baz`},
+	}
+
+	tmpDir := os.TempDir()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := IdleFilePath(tt.sessionID)
+			if !strings.HasPrefix(path, tmpDir) {
+				t.Errorf("path %q escapes temp dir %q", path, tmpDir)
+			}
+			// Ensure no path separators in the filename portion
+			filename := strings.TrimPrefix(path, tmpDir)
+			filename = strings.TrimPrefix(filename, string(os.PathSeparator))
+			if strings.ContainsAny(filename, `/\`) {
+				t.Errorf("filename %q contains path separators", filename)
+			}
+		})
 	}
 }
