@@ -63,7 +63,8 @@ const (
 	SpringGreen = "\033[38;5;48m"
 	Mint        = "\033[38;5;121m"
 	LightGreen  = "\033[38;5;119m"
-	PaleGreen   = "\033[38;5;157m"
+	PaleGreen     = "\033[38;5;157m"
+	SupabaseGreen = "\033[38;2;62;207;142m" // Supabase brand #3ECF8E
 
 	// Teals & Cyans (256-color)
 	Teal       = "\033[38;5;30m"
@@ -172,7 +173,8 @@ func ColorMap() map[string]string {
 		"spring_green": SpringGreen,
 		"mint":         Mint,
 		"light_green":  LightGreen,
-		"pale_green":   PaleGreen,
+		"pale_green":      PaleGreen,
+		"supabase_green":  SupabaseGreen,
 
 		// Teals & Cyans
 		"teal":        Teal,
