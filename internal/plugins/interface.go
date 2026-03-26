@@ -39,6 +39,10 @@ func NewRegistry() *Registry {
 	r.registerWithCache(&UsagePlugin{})
 	r.registerWithCache(&SupabasePlugin{})
 	r.registerWithCache(&VercelPlugin{})
+	r.registerWithCache(&CPUPlugin{})
+	r.registerWithCache(&MemoryPlugin{})
+	r.registerWithCache(&BatteryPlugin{})
+	r.registerWithCache(&StackPlugin{})
 
 	return r
 }
