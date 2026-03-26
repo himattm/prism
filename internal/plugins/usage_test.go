@@ -9,6 +9,7 @@ import (
 
 	"github.com/himattm/prism/internal/cache"
 	"github.com/himattm/prism/internal/plugin"
+	"github.com/himattm/prism/internal/tokens"
 )
 
 func TestUsagePlugin_Name(t *testing.T) {
@@ -156,6 +157,46 @@ func TestParseUsageConfig(t *testing.T) {
 				costDecimals: 2,
 				costColor:    "gray",
 				showBurnRate: false,
+				showCache:    true,
+			},
+		},
+		{
+			name: "negative decimals clamped to 0",
+			input: map[string]any{
+				"usage": map[string]any{
+					"api_billing": map[string]any{
+						"decimals": float64(-1),
+					},
+				},
+			},
+			expected: usageConfig{
+				style:        "text",
+				showHours:    true,
+				showDays:     true,
+				showOpus:     true,
+				costDecimals: 0,
+				costColor:    "gray",
+				showBurnRate: true,
+				showCache:    true,
+			},
+		},
+		{
+			name: "large decimals clamped to 10",
+			input: map[string]any{
+				"usage": map[string]any{
+					"api_billing": map[string]any{
+						"decimals": float64(99),
+					},
+				},
+			},
+			expected: usageConfig{
+				style:        "text",
+				showHours:    true,
+				showDays:     true,
+				showOpus:     true,
+				costDecimals: 10,
+				costColor:    "gray",
+				showBurnRate: true,
 				showCache:    true,
 			},
 		},
@@ -522,12 +563,12 @@ func TestCacheRatio(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ratio, ok := cacheRatio(tt.input, tt.creation, tt.read)
+			ratio, ok := tokens.CacheEfficiency(tt.input, tt.creation, tt.read)
 			if ok != tt.expectedOK {
-				t.Errorf("cacheRatio(%d, %d, %d) ok = %v, want %v", tt.input, tt.creation, tt.read, ok, tt.expectedOK)
+				t.Errorf("CacheEfficiency(%d, %d, %d) ok = %v, want %v", tt.input, tt.creation, tt.read, ok, tt.expectedOK)
 			}
 			if ok && ratio != tt.expectedRatio {
-				t.Errorf("cacheRatio(%d, %d, %d) = %d, want %d", tt.input, tt.creation, tt.read, ratio, tt.expectedRatio)
+				t.Errorf("CacheEfficiency(%d, %d, %d) = %d, want %d", tt.input, tt.creation, tt.read, ratio, tt.expectedRatio)
 			}
 		})
 	}
