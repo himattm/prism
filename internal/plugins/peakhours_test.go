@@ -297,6 +297,29 @@ func TestPeakHoursPlugin_Execute_CacheHit(t *testing.T) {
 	}
 }
 
+func TestWeekendReturnsEmpty(t *testing.T) {
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Fatalf("failed to load timezone: %v", err)
+	}
+
+	// Saturday
+	isPeak, isWeekend, _ := localPeakStatus(time.Date(2026, 3, 28, 10, 0, 0, 0, loc))
+	if isPeak {
+		t.Error("Saturday should not be peak")
+	}
+	if !isWeekend {
+		t.Error("Saturday should be weekend")
+	}
+
+	// Weekend should produce empty output
+	colors := map[string]string{"red": "[red]", "green": "[green]", "reset": "[reset]"}
+	output := formatPeakHoursOutput(colors, isPeak, isWeekend, 0)
+	if output != "" {
+		t.Errorf("expected empty string for weekend, got %q", output)
+	}
+}
+
 func TestPeakHoursPlugin_Execute_WeekendCacheHit(t *testing.T) {
 	p := &PeakHoursPlugin{}
 	c := cache.New()
