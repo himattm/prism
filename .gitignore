@@ -32,6 +32,10 @@ go.work.sum
 *.swo
 *~
 
+# Superpowers working artifacts (specs, plans, brainstorm sessions)
+docs/superpowers/
+.superpowers/
+
 # OS
 .DS_Store
 Thumbs.db
