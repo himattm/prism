@@ -20,6 +20,11 @@ const (
 	tokenCacheKey   = "oauth_token"
 	tokenCacheTTL   = 5 * time.Minute
 	usageAPITimeout = 3 * time.Second
+)
+
+var usageClient = &http.Client{Timeout: usageAPITimeout}
+
+const (
 
 	// usageRenderedKey is used to coordinate between usage plugins
 	// to prevent duplicate rendering in the same status line refresh
@@ -179,8 +184,7 @@ func FetchUsage(ctx context.Context, token string) (*UsageResponse, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-beta", "oauth-2025-04-20")
 
-	client := &http.Client{Timeout: usageAPITimeout}
-	resp, err := client.Do(req)
+	resp, err := usageClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch usage: %w", err)
 	}

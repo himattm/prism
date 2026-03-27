@@ -21,6 +21,8 @@ const (
 	peakHoursAPITimeout = 2 * time.Second
 )
 
+var peakHoursClient = &http.Client{Timeout: peakHoursAPITimeout}
+
 // peakHoursResponse represents the JSON from promoclock.co/api/status
 type peakHoursResponse struct {
 	Status             string `json:"status"`
@@ -161,8 +163,7 @@ func (p *PeakHoursPlugin) fetchFromAPI(ctx context.Context, colors map[string]st
 		return nil, 0
 	}
 
-	client := &http.Client{Timeout: peakHoursAPITimeout}
-	resp, err := client.Do(req)
+	resp, err := peakHoursClient.Do(req)
 	if err != nil {
 		return nil, 0
 	}
