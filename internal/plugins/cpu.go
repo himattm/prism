@@ -46,8 +46,7 @@ func (p *CPUPlugin) Execute(ctx context.Context, input plugin.Input) (string, er
 		return "", nil // unsupported platform
 	}
 
-	// Use global session ID — CPU is machine-wide, not per-session
-	buf := sparkline.PushAndSave("global", "cpu", pct)
+	buf := sparkline.PushAndSave(globalSessionID, "cpu", pct)
 	output := formatSparkMetric(input, "CPU", buf, pct)
 
 	if p.cache != nil {

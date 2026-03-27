@@ -41,8 +41,7 @@ func (p *MemoryPlugin) Execute(ctx context.Context, input plugin.Input) (string,
 		return "", nil
 	}
 
-	// Use global session ID — memory is machine-wide, not per-session
-	buf := sparkline.PushAndSave("global", "mem", pct)
+	buf := sparkline.PushAndSave(globalSessionID, "mem", pct)
 	output := formatSparkMetricMuted(input, "MEM", buf, pct)
 
 	if p.cache != nil {

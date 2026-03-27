@@ -7,26 +7,27 @@ import (
 	"github.com/himattm/prism/internal/sparkline"
 )
 
+// globalSessionID is used for machine-wide metrics (CPU, memory, battery)
+// so all Claude Code sessions share one sparkline buffer.
+const globalSessionID = "global"
+
+// formatSparkOutput renders label + sparkline + pct with a pre-computed color.
+func formatSparkOutput(input plugin.Input, label string, buf *sparkline.Buffer, pct int, color string) string {
+	reset := input.Colors["reset"]
+	spark := buf.Render()
+	return fmt.Sprintf("%s%s %s %d%%%s", color, label, spark, pct, reset)
+}
+
 // formatSparkMetric renders a label + sparkline + percentage with color
 // e.g. "CPU ▁▃▅▇█▅▃▂ 34%"
 func formatSparkMetric(input plugin.Input, label string, buf *sparkline.Buffer, pct int) string {
-	return formatSparkMetricStyle(input, label, buf, pct, false)
+	return formatSparkOutput(input, label, buf, pct, sparkColor(input, pct))
 }
 
-// formatSparkMetricMuted renders a muted variant (dimmed when in normal range)
+// formatSparkMetricMuted renders a muted variant (dimmed)
 func formatSparkMetricMuted(input plugin.Input, label string, buf *sparkline.Buffer, pct int) string {
-	return formatSparkMetricStyle(input, label, buf, pct, true)
-}
-
-func formatSparkMetricStyle(input plugin.Input, label string, buf *sparkline.Buffer, pct int, muted bool) string {
-	reset := input.Colors["reset"]
-	color := sparkColor(input, pct)
-	if muted {
-		color = input.Colors["dim"] + color
-	}
-	spark := buf.Render()
-
-	return fmt.Sprintf("%s%s %s %d%%%s", color, label, spark, pct, reset)
+	color := input.Colors["dim"] + sparkColor(input, pct)
+	return formatSparkOutput(input, label, buf, pct, color)
 }
 
 // sparkColor returns the appropriate ANSI color based on the percentage:

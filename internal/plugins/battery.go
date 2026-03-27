@@ -3,7 +3,6 @@ package plugins
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,8 +43,7 @@ func (p *BatteryPlugin) Execute(ctx context.Context, input plugin.Input) (string
 		return "", nil // no battery (desktop, server, unsupported)
 	}
 
-	// Use global session ID — battery is machine-wide, not per-session
-	buf := sparkline.PushAndSave("global", "bat", pct)
+	buf := sparkline.PushAndSave(globalSessionID, "bat", pct)
 
 	label := "BAT"
 	if charging {
@@ -155,11 +153,8 @@ func getBatteryDarwin() (int, bool) {
 	return clamp(pct, 0, 100), charging
 }
 
-// formatBatteryMetric formats battery with sparkline and charging-aware colors (dimmed).
+// formatBatteryMetric formats battery with charging-aware colors, always dimmed.
 func formatBatteryMetric(input plugin.Input, label string, buf *sparkline.Buffer, pct int, charging bool) string {
-	reset := input.Colors["reset"]
-	dim := input.Colors["dim"]
-
 	var color string
 	if charging {
 		color = input.Colors["emerald"]
@@ -167,7 +162,5 @@ func formatBatteryMetric(input plugin.Input, label string, buf *sparkline.Buffer
 		// Invert: low battery is critical, high is healthy
 		color = sparkColor(input, 100-pct)
 	}
-
-	spark := buf.Render()
-	return fmt.Sprintf("%s%s%s %s %d%%%s", dim, color, label, spark, pct, reset)
+	return formatSparkOutput(input, label, buf, pct, input.Colors["dim"]+color)
 }
