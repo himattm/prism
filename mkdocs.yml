@@ -1,0 +1,84 @@
+site_name: Prism
+repo_name: himattm/prism
+repo_url: https://github.com/himattm/prism
+site_url: https://prism.mmckenna.me
+site_description: "A fast, customizable, and colorful status line for Claude Code"
+site_author: Matt McKenna
+remote_branch: gh-pages
+
+copyright: 'Copyright &copy; 2025 Matt McKenna'
+
+theme:
+  name: 'material'
+  palette:
+    - media: '(prefers-color-scheme)'
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: 'white'
+      accent: 'amber'
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: 'black'
+      accent: 'amber'
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  font:
+    text: 'Inter'
+    code: 'Fira Code'
+  features:
+    - content.code.copy
+    - content.code.select
+    - content.action.edit
+    - content.action.view
+    - content.tabs.link
+    - navigation.tabs
+    - navigation.footer
+    - navigation.top
+    - navigation.sections
+    - search.highlight
+    - search.suggest
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Features: getting-started/features.md
+  - Configuration:
+    - Config System: configuration/config-system.md
+    - Sections: configuration/sections.md
+    - Layouts: configuration/layouts.md
+  - Plugins:
+    - Built-in Plugins: plugins/built-in-plugins.md
+    - Custom Plugins: plugins/custom-plugins.md
+    - Script Plugins: plugins/script-plugins.md
+  - Hooks: hooks.md
+  - Contributing:
+    - How to Contribute: contributing/contributing.md
+    - Code of Conduct: contributing/code-of-conduct.md
+  - Changelog: changelog.md
