@@ -123,4 +123,5 @@ const (
 	VercelBuildTTL   = 3 * time.Second  // Faster polling during transient states
 	VercelProjectTTL = 5 * time.Minute  // Project linkage rarely changes
 	VercelTeamTTL    = 5 * time.Minute  // Team/user context rarely changes
+	PeakHoursTTL     = 30 * time.Minute // Fallback TTL when API doesn't return minutesUntilChange
 )
