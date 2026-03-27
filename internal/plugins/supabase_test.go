@@ -238,8 +238,8 @@ func TestSupabasePlugin_NoConfigToml(t *testing.T) {
 		Config: map[string]any{},
 		Colors: map[string]string{
 			"supabase_green": "[supabase_green]",
-			"gray":    "[gray]",
-			"reset":   "[reset]",
+			"gray":           "[gray]",
+			"reset":          "[reset]",
 		},
 	}
 
@@ -385,8 +385,8 @@ func TestSupabasePlugin_Execute_Caching(t *testing.T) {
 		Config: map[string]any{},
 		Colors: map[string]string{
 			"supabase_green": "[supabase_green]",
-			"gray":    "[gray]",
-			"reset":   "[reset]",
+			"gray":           "[gray]",
+			"reset":          "[reset]",
 		},
 	}
 

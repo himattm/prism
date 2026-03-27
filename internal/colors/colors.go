@@ -54,15 +54,15 @@ const (
 	Olive       = "\033[38;5;142m"
 
 	// Greens (256-color)
-	DarkGreen   = "\033[38;5;22m"
-	ForestGreen = "\033[38;5;28m"
-	SeaGreen    = "\033[38;5;29m"
-	Emerald     = "\033[38;5;35m"
-	LimeGreen   = "\033[38;5;118m"
-	Lime        = "\033[38;5;154m"
-	SpringGreen = "\033[38;5;48m"
-	Mint        = "\033[38;5;121m"
-	LightGreen  = "\033[38;5;119m"
+	DarkGreen     = "\033[38;5;22m"
+	ForestGreen   = "\033[38;5;28m"
+	SeaGreen      = "\033[38;5;29m"
+	Emerald       = "\033[38;5;35m"
+	LimeGreen     = "\033[38;5;118m"
+	Lime          = "\033[38;5;154m"
+	SpringGreen   = "\033[38;5;48m"
+	Mint          = "\033[38;5;121m"
+	LightGreen    = "\033[38;5;119m"
 	PaleGreen     = "\033[38;5;157m"
 	SupabaseGreen = "\033[38;2;62;207;142m" // Supabase brand #3ECF8E
 
@@ -164,17 +164,17 @@ func ColorMap() map[string]string {
 		"olive":        Olive,
 
 		// Greens
-		"dark_green":   DarkGreen,
-		"forest_green": ForestGreen,
-		"sea_green":    SeaGreen,
-		"emerald":      Emerald,
-		"lime_green":   LimeGreen,
-		"lime":         Lime,
-		"spring_green": SpringGreen,
-		"mint":         Mint,
-		"light_green":  LightGreen,
-		"pale_green":      PaleGreen,
-		"supabase_green":  SupabaseGreen,
+		"dark_green":     DarkGreen,
+		"forest_green":   ForestGreen,
+		"sea_green":      SeaGreen,
+		"emerald":        Emerald,
+		"lime_green":     LimeGreen,
+		"lime":           Lime,
+		"spring_green":   SpringGreen,
+		"mint":           Mint,
+		"light_green":    LightGreen,
+		"pale_green":     PaleGreen,
+		"supabase_green": SupabaseGreen,
 
 		// Teals & Cyans
 		"teal":        Teal,

@@ -225,15 +225,15 @@ func TestFormatVercelOutput(t *testing.T) {
 			expected: "[gray]▲ initializing[reset]",
 		},
 		{
-			name:   "with URL",
-			deploy: &vercelDeployment{State: "READY", URL: "my-app-abc.vercel.app"},
-			cfg:    vercelConfig{ShowURL: true, MaxURLLength: 30},
+			name:     "with URL",
+			deploy:   &vercelDeployment{State: "READY", URL: "my-app-abc.vercel.app"},
+			cfg:      vercelConfig{ShowURL: true, MaxURLLength: 30},
 			expected: "[emerald]▲ ready my-app-abc.vercel.app[reset]",
 		},
 		{
-			name:   "with long URL truncated",
-			deploy: &vercelDeployment{State: "READY", URL: "my-very-long-app-name-abc123def456.vercel.app"},
-			cfg:    vercelConfig{ShowURL: true, MaxURLLength: 20},
+			name:     "with long URL truncated",
+			deploy:   &vercelDeployment{State: "READY", URL: "my-very-long-app-name-abc123def456.vercel.app"},
+			cfg:      vercelConfig{ShowURL: true, MaxURLLength: 20},
 			expected: "[emerald]▲ ready my-very-long-app-na…[reset]",
 		},
 		{
