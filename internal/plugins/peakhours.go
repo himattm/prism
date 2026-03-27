@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -9,6 +10,24 @@ const (
 	peakStartHour = 5  // 5 AM PT
 	peakEndHour   = 11 // 11 AM PT
 )
+
+// peakHoursResponse represents the JSON from promoclock.co/api/status
+type peakHoursResponse struct {
+	Status             string `json:"status"`
+	IsPeak             bool   `json:"isPeak"`
+	IsOffPeak          bool   `json:"isOffPeak"`
+	IsWeekend          bool   `json:"isWeekend"`
+	MinutesUntilChange int    `json:"minutesUntilChange"`
+}
+
+// parsePeakHoursResponse parses the promoclock API JSON response.
+func parsePeakHoursResponse(body []byte) (*peakHoursResponse, error) {
+	var resp peakHoursResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
 
 // localPeakStatus computes peak/off-peak status from local timezone math.
 func localPeakStatus(now time.Time) (bool, bool, int) {

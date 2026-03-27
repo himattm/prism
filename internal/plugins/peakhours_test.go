@@ -123,3 +123,70 @@ func TestLocalPeakStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestParsePeakHoursResponse(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		expectErr  bool
+		expectPeak bool
+		expectWknd bool
+		expectMin  int
+	}{
+		{
+			name:       "peak response",
+			body:       `{"status":"peak","isPeak":true,"isOffPeak":false,"isWeekend":false,"minutesUntilChange":190}`,
+			expectPeak: true,
+			expectWknd: false,
+			expectMin:  190,
+		},
+		{
+			name:       "off-peak response",
+			body:       `{"status":"off-peak","isPeak":false,"isOffPeak":true,"isWeekend":false,"minutesUntilChange":252}`,
+			expectPeak: false,
+			expectWknd: false,
+			expectMin:  252,
+		},
+		{
+			name:       "weekend response",
+			body:       `{"status":"off-peak","isPeak":false,"isOffPeak":true,"isWeekend":true,"minutesUntilChange":1440}`,
+			expectPeak: false,
+			expectWknd: true,
+			expectMin:  1440,
+		},
+		{
+			name:      "invalid json",
+			body:      `not json`,
+			expectErr: true,
+		},
+		{
+			name:      "empty body",
+			body:      ``,
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := parsePeakHoursResponse([]byte(tt.body))
+			if tt.expectErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if resp.IsPeak != tt.expectPeak {
+				t.Errorf("IsPeak: got %v, want %v", resp.IsPeak, tt.expectPeak)
+			}
+			if resp.IsWeekend != tt.expectWknd {
+				t.Errorf("IsWeekend: got %v, want %v", resp.IsWeekend, tt.expectWknd)
+			}
+			if resp.MinutesUntilChange != tt.expectMin {
+				t.Errorf("MinutesUntilChange: got %d, want %d", resp.MinutesUntilChange, tt.expectMin)
+			}
+		})
+	}
+}
