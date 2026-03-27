@@ -83,10 +83,11 @@ func (p *SupabasePlugin) Execute(ctx context.Context, input plugin.Input) (strin
 	var result strings.Builder
 	if running {
 		result.WriteString(green)
+		result.WriteString("ϟ Supabase: up")
 	} else {
 		result.WriteString(gray)
+		result.WriteString("ϟ Supabase: stopped")
 	}
-	result.WriteString("⚡")
 
 	// Fetch migrations (idle-only for fresh data, use cache otherwise)
 	if running && cfg.showMigrations {

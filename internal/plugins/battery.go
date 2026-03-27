@@ -33,8 +33,6 @@ func (p *BatteryPlugin) Name() string { return "battery" }
 func (p *BatteryPlugin) SetCache(c *cache.Cache) { p.cache = c }
 
 func (p *BatteryPlugin) Execute(ctx context.Context, input plugin.Input) (string, error) {
-	sessionID := input.Prism.SessionID
-
 	if p.cache != nil {
 		if cached, ok := p.cache.Get(batCacheKey); ok {
 			return cached, nil
@@ -46,7 +44,8 @@ func (p *BatteryPlugin) Execute(ctx context.Context, input plugin.Input) (string
 		return "", nil // no battery (desktop, server, unsupported)
 	}
 
-	buf := sparkline.PushAndSave(sessionID, "bat", pct)
+	// Use global session ID — battery is machine-wide, not per-session
+	buf := sparkline.PushAndSave("global", "bat", pct)
 
 	label := "BAT"
 	if charging {
@@ -156,9 +155,10 @@ func getBatteryDarwin() (int, bool) {
 	return clamp(pct, 0, 100), charging
 }
 
-// formatBatteryMetric formats battery with sparkline and charging-aware colors
+// formatBatteryMetric formats battery with sparkline and charging-aware colors (dimmed).
 func formatBatteryMetric(input plugin.Input, label string, buf *sparkline.Buffer, pct int, charging bool) string {
 	reset := input.Colors["reset"]
+	dim := input.Colors["dim"]
 
 	var color string
 	if charging {
@@ -169,5 +169,5 @@ func formatBatteryMetric(input plugin.Input, label string, buf *sparkline.Buffer
 	}
 
 	spark := buf.Render()
-	return fmt.Sprintf("%s%s %s %d%%%s", color, label, spark, pct, reset)
+	return fmt.Sprintf("%s%s%s %s %d%%%s", dim, color, label, spark, pct, reset)
 }

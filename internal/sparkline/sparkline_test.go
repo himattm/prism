@@ -52,20 +52,23 @@ func TestBuffer_Latest(t *testing.T) {
 
 func TestBuffer_Render(t *testing.T) {
 	b := &Buffer{}
-	if b.Render() != "" {
-		t.Errorf("expected empty string for empty buffer, got %q", b.Render())
+	// Empty buffer renders as all-low bars
+	if b.Render() != "▁▁▁▁▁▁▁▁" {
+		t.Errorf("expected all-low bars for empty buffer, got %q", b.Render())
 	}
 
 	b.Push(0)
 	r := b.Render()
-	if r != "▁" {
-		t.Errorf("expected ▁ for 0%%, got %q", r)
+	// 7 empty slots + 1 value = all low bars
+	if r != "▁▁▁▁▁▁▁▁" {
+		t.Errorf("expected ▁▁▁▁▁▁▁▁ for single 0%%, got %q", r)
 	}
 
 	b.Push(100)
 	r = b.Render()
-	if r != "▁█" {
-		t.Errorf("expected ▁█, got %q", r)
+	// 6 empty slots + 2 values
+	if r != "▁▁▁▁▁▁▁█" {
+		t.Errorf("expected ▁▁▁▁▁▁▁█, got %q", r)
 	}
 }
 

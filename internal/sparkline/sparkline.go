@@ -49,24 +49,31 @@ func (b *Buffer) Latest() int {
 	return b.Values[idx]
 }
 
-// Render returns the sparkline string (e.g. "▁▃▅▇█▅▃▂")
+// Render returns the sparkline string (e.g. "▁▃▅▇█▅▃▂").
+// Always renders BufferSize bars; empty slots show as the lowest bar.
 func (b *Buffer) Render() string {
 	if b.Count == 0 {
-		return ""
+		return string([]rune{barChars[0], barChars[0], barChars[0], barChars[0], barChars[0], barChars[0], barChars[0], barChars[0]})
 	}
 
-	runes := make([]rune, b.Count)
+	runes := make([]rune, BufferSize)
+
+	// Fill empty leading slots with lowest bar
+	empty := BufferSize - b.Count
+	for i := 0; i < empty; i++ {
+		runes[i] = barChars[0]
+	}
 
 	// Read from oldest to newest
 	start := 0
 	if b.Count == BufferSize {
-		start = b.Pos // oldest is at current write position when full
+		start = b.Pos
 	}
 
 	for i := 0; i < b.Count; i++ {
 		idx := (start + i) % BufferSize
 		level := pctToLevel(b.Values[idx])
-		runes[i] = barChars[level]
+		runes[empty+i] = barChars[level]
 	}
 
 	return string(runes)

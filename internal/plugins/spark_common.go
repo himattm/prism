@@ -10,8 +10,20 @@ import (
 // formatSparkMetric renders a label + sparkline + percentage with color
 // e.g. "CPU ▁▃▅▇█▅▃▂ 34%"
 func formatSparkMetric(input plugin.Input, label string, buf *sparkline.Buffer, pct int) string {
+	return formatSparkMetricStyle(input, label, buf, pct, false)
+}
+
+// formatSparkMetricMuted renders a muted variant (dimmed when in normal range)
+func formatSparkMetricMuted(input plugin.Input, label string, buf *sparkline.Buffer, pct int) string {
+	return formatSparkMetricStyle(input, label, buf, pct, true)
+}
+
+func formatSparkMetricStyle(input plugin.Input, label string, buf *sparkline.Buffer, pct int, muted bool) string {
 	reset := input.Colors["reset"]
 	color := sparkColor(input, pct)
+	if muted {
+		color = input.Colors["dim"] + color
+	}
 	spark := buf.Render()
 
 	return fmt.Sprintf("%s%s %s %d%%%s", color, label, spark, pct, reset)

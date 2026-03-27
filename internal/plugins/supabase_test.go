@@ -374,7 +374,7 @@ func TestSupabasePlugin_Execute_Caching(t *testing.T) {
 	p.SetCache(c)
 
 	// Pre-populate cache
-	expectedOutput := "[supabase_green]⚡[reset]"
+	expectedOutput := "[supabase_green]ϟ Supabase: up[reset]"
 	c.Set("supabase:output:/test/dir", expectedOutput, time.Minute)
 
 	ctx := context.Background()

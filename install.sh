@@ -223,6 +223,16 @@ run_migrations() {
         fi
     fi
 
+    # v0.11.0: Add supabase, vercel, system metrics, and peak hours plugins
+    if version_lt "$config_version" "0.11.0"; then
+        for p in supabase vercel cpu memory battery stack peakhours; do
+            if add_section "$p" "$GLOBAL_CONFIG"; then
+                success "  Migrated: added '$p' section (new plugin)"
+                migrated=true
+            fi
+        done
+    fi
+
     # ============================================================
 
     # Update config version to current so migrations don't re-run

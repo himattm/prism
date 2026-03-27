@@ -34,8 +34,6 @@ func (p *CPUPlugin) Name() string { return "cpu" }
 func (p *CPUPlugin) SetCache(c *cache.Cache) { p.cache = c }
 
 func (p *CPUPlugin) Execute(ctx context.Context, input plugin.Input) (string, error) {
-	sessionID := input.Prism.SessionID
-
 	// Check cache to avoid re-reading /proc/stat too often
 	if p.cache != nil {
 		if cached, ok := p.cache.Get(cpuCacheKey); ok {
@@ -48,7 +46,8 @@ func (p *CPUPlugin) Execute(ctx context.Context, input plugin.Input) (string, er
 		return "", nil // unsupported platform
 	}
 
-	buf := sparkline.PushAndSave(sessionID, "cpu", pct)
+	// Use global session ID — CPU is machine-wide, not per-session
+	buf := sparkline.PushAndSave("global", "cpu", pct)
 	output := formatSparkMetric(input, "CPU", buf, pct)
 
 	if p.cache != nil {

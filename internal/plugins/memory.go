@@ -30,8 +30,6 @@ func (p *MemoryPlugin) Name() string { return "memory" }
 func (p *MemoryPlugin) SetCache(c *cache.Cache) { p.cache = c }
 
 func (p *MemoryPlugin) Execute(ctx context.Context, input plugin.Input) (string, error) {
-	sessionID := input.Prism.SessionID
-
 	if p.cache != nil {
 		if cached, ok := p.cache.Get(memCacheKey); ok {
 			return cached, nil
@@ -43,8 +41,9 @@ func (p *MemoryPlugin) Execute(ctx context.Context, input plugin.Input) (string,
 		return "", nil
 	}
 
-	buf := sparkline.PushAndSave(sessionID, "mem", pct)
-	output := formatSparkMetric(input, "MEM", buf, pct)
+	// Use global session ID — memory is machine-wide, not per-session
+	buf := sparkline.PushAndSave("global", "mem", pct)
+	output := formatSparkMetricMuted(input, "MEM", buf, pct)
 
 	if p.cache != nil {
 		p.cache.Set(memCacheKey, output, memCacheTTL)
