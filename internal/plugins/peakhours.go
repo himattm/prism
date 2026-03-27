@@ -3,6 +3,7 @@ package plugins
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -74,4 +75,27 @@ func formatCountdown(minutes int) string {
 		return fmt.Sprintf("%dh%dm", minutes/60, minutes%60)
 	}
 	return fmt.Sprintf("%dm", minutes)
+}
+
+// formatPeakHoursOutput builds the colored status line segment.
+func formatPeakHoursOutput(colors map[string]string, isPeak, isWeekend bool, minutesUntilChange int) string {
+	if isWeekend {
+		return ""
+	}
+
+	reset := colors["reset"]
+	var b strings.Builder
+
+	if isPeak {
+		b.WriteString(colors["red"])
+		b.WriteString("▲ Peak ")
+	} else {
+		b.WriteString(colors["green"])
+		b.WriteString("▼ Off-Peak ")
+	}
+
+	b.WriteString(formatCountdown(minutesUntilChange))
+	b.WriteString(reset)
+
+	return b.String()
 }

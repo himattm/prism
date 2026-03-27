@@ -190,3 +190,64 @@ func TestParsePeakHoursResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatPeakHoursOutput(t *testing.T) {
+	colors := map[string]string{
+		"red":   "[red]",
+		"green": "[green]",
+		"reset": "[reset]",
+	}
+
+	tests := []struct {
+		name      string
+		isPeak    bool
+		isWeekend bool
+		minutes   int
+		expected  string
+	}{
+		{
+			name:     "peak with hours and minutes",
+			isPeak:   true,
+			minutes:  158,
+			expected: "[red]▲ Peak 2h38m[reset]",
+		},
+		{
+			name:     "peak with minutes only",
+			isPeak:   true,
+			minutes:  38,
+			expected: "[red]▲ Peak 38m[reset]",
+		},
+		{
+			name:     "peak under one minute",
+			isPeak:   true,
+			minutes:  0,
+			expected: "[red]▲ Peak <1m[reset]",
+		},
+		{
+			name:     "off-peak with hours",
+			isPeak:   false,
+			minutes:  252,
+			expected: "[green]▼ Off-Peak 4h12m[reset]",
+		},
+		{
+			name:     "off-peak with minutes only",
+			isPeak:   false,
+			minutes:  45,
+			expected: "[green]▼ Off-Peak 45m[reset]",
+		},
+		{
+			name:      "weekend returns empty",
+			isWeekend: true,
+			expected:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatPeakHoursOutput(colors, tt.isPeak, tt.isWeekend, tt.minutes)
+			if result != tt.expected {
+				t.Errorf("got %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
