@@ -115,8 +115,10 @@ To disable automatic updates, set the following in your config:
 
 ```json
 {
-  "update": {
-    "enabled": false
+  "plugins": {
+    "update": {
+      "enabled": false
+    }
   }
 }
 ```

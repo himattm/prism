@@ -89,7 +89,7 @@ Color urgency:
 | Utilization | Color |
 |-------------|-------|
 | Under 70% | White |
-| 70--89% | Yellow |
+| 70-89% | Yellow |
 | 90% and above | Red |
 
 **Configuration:**
@@ -466,7 +466,7 @@ Color thresholds:
 | Usage | Color |
 |-------|-------|
 | Under 70% | Gray |
-| 70--89% | Yellow |
+| 70-89% | Yellow |
 | 90% and above | Crimson |
 
 **Configuration:** No config options.
@@ -577,7 +577,7 @@ Technologies are colored individually and separated by a dimmed `/`. Detection i
 | `max_items` | int | `4` | Maximum number of technologies to display |
 | `hide` | array | `[]` | Technology names to exclude from output |
 
-**Cache:** 30-second TTL. Invalidated on session start (via the `session_start` hook) to ensure fresh detection when switching projects.
+**Cache:** 30-second TTL. Invalidated on session start (via the `session-start` hook) to ensure fresh detection when switching projects.
 
 ---
 

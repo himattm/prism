@@ -71,7 +71,7 @@ A minimal global config that sets default sections for all projects:
 
 ```json
 {
-  "sections": ["dir", "model", "context", "cost", "git"]
+  "sections": ["dir", "model", "context", "usage", "git"]
 }
 ```
 

@@ -16,7 +16,7 @@ Each section is described below.
 | Model | `Opus 4.6` | Active Claude model |
 | Context | `████░░░░▒▒ 56%` | Context window usage, visualized as a progress bar. Color shifts from white to yellow to red as usage rises. |
 | Usage (API) | `$1.23 ⌁78% ~$4.50/h` | Session cost, cache efficiency, and estimated burn rate per hour |
-| Usage (Max/Pro) | `4h30m:78% 5d:40%` | Time remaining in session limit, weekly limit, and Opus weekly limit |
+| Usage (Max/Pro) | `4h30m:78% 5d:40% 4d:25%` | Time remaining in session limit, weekly limit, and Opus weekly limit |
 | Git | `main*+ ⇣3 ⇡1` | Branch name, dirty flag (*), untracked files (+), commits behind (⇣n) and ahead (⇡n) |
 
 Prism automatically detects whether you are on an API billing plan or a Max/Pro subscription and displays the appropriate usage format.

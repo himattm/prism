@@ -29,6 +29,9 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to system preference
+  icon:
+    logo: octicons/ruby-24
+  favicon: assets/favicon.svg
   font:
     text: 'Inter'
     code: 'Fira Code'
