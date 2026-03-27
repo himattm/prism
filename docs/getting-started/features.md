@@ -39,7 +39,7 @@ The git section surfaces the state of your repository without leaving Claude Cod
 
 - Branch name
 - Dirty status (`*`) when there are uncommitted changes
-- Stash count (`+n`) when stashes are present
+- Untracked files indicator (`+`) when untracked files are present
 - Upstream tracking: commits behind (`⇣n`) and commits ahead (`⇡n`)
 
 Worktree sessions are indicated with a `⎇` prefix in the directory section, making it easy to identify which worktree you are working in.

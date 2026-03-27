@@ -25,12 +25,12 @@ Prism ships with 14 native plugins written in Go. Each plugin integrates directl
 
 ## git
 
-Shows the current git branch, dirty state, stash count, and upstream tracking status.
+Shows the current git branch, dirty state, untracked file indicator, and upstream tracking status.
 
 **Example output:**
 
 ```
-main*+2 ⇣3 ⇡1
+main*+ ⇣3 ⇡1
 ```
 
 | Component | Meaning |
