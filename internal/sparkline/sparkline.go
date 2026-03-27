@@ -52,10 +52,6 @@ func (b *Buffer) Latest() int {
 // Render returns the sparkline string (e.g. "▁▃▅▇█▅▃▂").
 // Always renders BufferSize bars; empty slots show as the lowest bar.
 func (b *Buffer) Render() string {
-	if b.Count == 0 {
-		return string([]rune{barChars[0], barChars[0], barChars[0], barChars[0], barChars[0], barChars[0], barChars[0], barChars[0]})
-	}
-
 	runes := make([]rune, BufferSize)
 
 	// Fill empty leading slots with lowest bar
