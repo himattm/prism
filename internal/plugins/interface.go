@@ -43,6 +43,7 @@ func NewRegistry() *Registry {
 	r.registerWithCache(&MemoryPlugin{})
 	r.registerWithCache(&BatteryPlugin{})
 	r.registerWithCache(&StackPlugin{})
+	r.registerWithCache(&PeakHoursPlugin{})
 
 	return r
 }

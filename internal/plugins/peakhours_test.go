@@ -1,8 +1,12 @@
 package plugins
 
 import (
+	"context"
 	"testing"
 	"time"
+
+	"github.com/himattm/prism/internal/cache"
+	"github.com/himattm/prism/internal/plugin"
 )
 
 func TestFormatCountdown(t *testing.T) {
@@ -249,5 +253,70 @@ func TestFormatPeakHoursOutput(t *testing.T) {
 				t.Errorf("got %q, want %q", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestPeakHoursPlugin_Name(t *testing.T) {
+	p := &PeakHoursPlugin{}
+	if p.Name() != "peakhours" {
+		t.Errorf("expected name 'peakhours', got '%s'", p.Name())
+	}
+}
+
+func TestPeakHoursPlugin_SetCache(t *testing.T) {
+	p := &PeakHoursPlugin{}
+	c := cache.New()
+	p.SetCache(c)
+	if p.cache != c {
+		t.Error("cache was not set correctly")
+	}
+}
+
+func TestPeakHoursPlugin_Execute_CacheHit(t *testing.T) {
+	p := &PeakHoursPlugin{}
+	c := cache.New()
+	p.SetCache(c)
+
+	expected := "[red]▲ Peak 2h38m[reset]"
+	c.Set("peakhours:status", expected, time.Minute)
+
+	input := plugin.Input{
+		Colors: map[string]string{
+			"red":   "[red]",
+			"green": "[green]",
+			"reset": "[reset]",
+		},
+	}
+
+	result, err := p.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != expected {
+		t.Errorf("got %q, want %q", result, expected)
+	}
+}
+
+func TestPeakHoursPlugin_Execute_WeekendCacheHit(t *testing.T) {
+	p := &PeakHoursPlugin{}
+	c := cache.New()
+	p.SetCache(c)
+
+	c.Set("peakhours:status", "", time.Minute)
+
+	input := plugin.Input{
+		Colors: map[string]string{
+			"red":   "[red]",
+			"green": "[green]",
+			"reset": "[reset]",
+		},
+	}
+
+	result, err := p.Execute(context.Background(), input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "" {
+		t.Errorf("expected empty string for weekend, got %q", result)
 	}
 }

@@ -1,15 +1,24 @@
 package plugins
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
+
+	"github.com/himattm/prism/internal/cache"
+	"github.com/himattm/prism/internal/plugin"
 )
 
 const (
 	peakStartHour = 5  // 5 AM PT
 	peakEndHour   = 11 // 11 AM PT
+
+	peakHoursAPIURL     = "https://promoclock.co/api/status"
+	peakHoursAPITimeout = 2 * time.Second
 )
 
 // peakHoursResponse represents the JSON from promoclock.co/api/status
@@ -98,4 +107,99 @@ func formatPeakHoursOutput(colors map[string]string, isPeak, isWeekend bool, min
 	b.WriteString(reset)
 
 	return b.String()
+}
+
+// PeakHoursPlugin displays Claude's current peak/off-peak status
+type PeakHoursPlugin struct {
+	cache *cache.Cache
+}
+
+func (p *PeakHoursPlugin) Name() string {
+	return "peakhours"
+}
+
+func (p *PeakHoursPlugin) SetCache(c *cache.Cache) {
+	p.cache = c
+}
+
+func (p *PeakHoursPlugin) Execute(ctx context.Context, input plugin.Input) (string, error) {
+	cacheKey := "peakhours:status"
+
+	// Check cache — may contain empty string for weekends
+	if p.cache != nil {
+		if cached, ok := p.cache.Get(cacheKey); ok {
+			return cached, nil
+		}
+	}
+
+	// Try API first
+	output, ttl := p.fetchFromAPI(ctx, input.Colors)
+
+	// Fallback to local timezone calculation if API failed
+	if output == nil {
+		result, cacheTTL := p.localFallback(input.Colors)
+		output = &result
+		ttl = cacheTTL
+	}
+
+	// Cache the result (including empty string for weekends)
+	if p.cache != nil && ttl > 0 {
+		p.cache.Set(cacheKey, *output, ttl)
+	}
+
+	return *output, nil
+}
+
+// fetchFromAPI calls the promoclock API and returns formatted output + TTL.
+// Returns nil output if the API call fails.
+func (p *PeakHoursPlugin) fetchFromAPI(ctx context.Context, colors map[string]string) (*string, time.Duration) {
+	reqCtx, cancel := context.WithTimeout(ctx, peakHoursAPITimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, peakHoursAPIURL, nil)
+	if err != nil {
+		return nil, 0
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, 0
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, 0
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, 0
+	}
+
+	apiResp, err := parsePeakHoursResponse(body)
+	if err != nil {
+		return nil, 0
+	}
+
+	output := formatPeakHoursOutput(colors, apiResp.IsPeak, apiResp.IsWeekend, apiResp.MinutesUntilChange)
+
+	ttl := time.Duration(apiResp.MinutesUntilChange) * time.Minute
+	if ttl <= 0 {
+		ttl = cache.PeakHoursTTL
+	}
+
+	return &output, ttl
+}
+
+// localFallback computes peak status from timezone math when the API is unreachable.
+func (p *PeakHoursPlugin) localFallback(colors map[string]string) (string, time.Duration) {
+	isPeak, isWeekend, minutesUntil := localPeakStatus(time.Now())
+	output := formatPeakHoursOutput(colors, isPeak, isWeekend, minutesUntil)
+
+	ttl := time.Duration(minutesUntil) * time.Minute
+	if ttl <= 0 {
+		ttl = cache.PeakHoursTTL
+	}
+
+	return output, ttl
 }
