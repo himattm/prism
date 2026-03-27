@@ -161,7 +161,8 @@ func (p *PeakHoursPlugin) fetchFromAPI(ctx context.Context, colors map[string]st
 		return nil, 0
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: peakHoursAPITimeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0
 	}
@@ -171,7 +172,7 @@ func (p *PeakHoursPlugin) fetchFromAPI(ctx context.Context, colors map[string]st
 		return nil, 0
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return nil, 0
 	}
