@@ -223,6 +223,27 @@ run_migrations() {
         fi
     fi
 
+    # v0.11.0: Add supabase and vercel plugins
+    # System metrics (cpu, memory, battery) and stack are opt-in
+    if version_lt "$config_version" "0.11.0"; then
+        for p in supabase vercel; do
+            if add_section "$p" "$GLOBAL_CONFIG"; then
+                success "  Migrated: added '$p' section (new plugin)"
+                migrated=true
+            fi
+        done
+    fi
+
+    # v0.11.1: Add peak hours and android plugins
+    if version_lt "$config_version" "0.11.1"; then
+        for p in peakhours android; do
+            if add_section "$p" "$GLOBAL_CONFIG"; then
+                success "  Migrated: added '$p' section (new plugin)"
+                migrated=true
+            fi
+        done
+    fi
+
     # ============================================================
 
     # Update config version to current so migrations don't re-run

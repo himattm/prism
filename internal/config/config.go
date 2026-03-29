@@ -34,8 +34,8 @@ func (c Config) GetAutocompactBuffer() float64 {
 //   - Line 3: Auxiliary — ambient info like now-playing music
 func DefaultSectionLines() [][]string {
 	return [][]string{
-		{"dir", "model", "context", "usage", "git"},
-		{"supabase", "vercel"},
+		{"dir", "model", "context", "usage", "peakhours", "git"},
+		{"supabase", "vercel", "android"},
 		{"spotify"},
 	}
 }

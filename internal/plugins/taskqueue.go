@@ -182,7 +182,7 @@ func formatTaskQueueOutput(response tqListResponse, config taskQueueConfig, colo
 
 	// Error state: waiting tasks but nothing running (queue is stalled)
 	if response.Summary.Running == 0 && response.Summary.Waiting > 0 {
-		return red + fmt.Sprintf("tq: ⚠ %d waiting (run 'tq clear')", response.Summary.Waiting) + reset
+		return red + fmt.Sprintf("tq: ! %d waiting (run 'tq clear')", response.Summary.Waiting) + reset
 	}
 
 	var parts []string

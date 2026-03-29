@@ -294,7 +294,7 @@ func TestFormatTaskQueueOutput(t *testing.T) {
 			},
 			config:   defaultConfig,
 			colors:   noColors,
-			expected: "tq: ⚠ 3 waiting (run 'tq clear')",
+			expected: "tq: ! 3 waiting (run 'tq clear')",
 		},
 		{
 			name: "running task only",
