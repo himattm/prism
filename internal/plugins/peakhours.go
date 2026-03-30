@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	peakStartHour = 5  // 5 AM PT
-	peakEndHour   = 11 // 11 AM PT
+	peakStartHour = 6  // 6 AM PT
+	peakEndHour   = 12 // 12 PM PT
 
 	peakHoursAPIURL     = "https://promoclock.co/api/status"
 	peakHoursAPITimeout = 2 * time.Second
