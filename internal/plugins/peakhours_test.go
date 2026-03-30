@@ -49,7 +49,7 @@ func TestLocalPeakStatus(t *testing.T) {
 	}{
 		{
 			name:          "weekday peak start",
-			time:          time.Date(2026, 3, 27, 5, 0, 0, 0, loc),
+			time:          time.Date(2026, 3, 27, 6, 0, 0, 0, loc),
 			expectPeak:    true,
 			expectWeekend: false,
 			expectMinutes: 360,
@@ -59,18 +59,18 @@ func TestLocalPeakStatus(t *testing.T) {
 			time:          time.Date(2026, 3, 27, 8, 0, 0, 0, loc),
 			expectPeak:    true,
 			expectWeekend: false,
-			expectMinutes: 180,
+			expectMinutes: 240,
 		},
 		{
 			name:          "weekday peak end boundary",
-			time:          time.Date(2026, 3, 27, 10, 59, 0, 0, loc),
+			time:          time.Date(2026, 3, 27, 11, 59, 0, 0, loc),
 			expectPeak:    true,
 			expectWeekend: false,
 			expectMinutes: 1,
 		},
 		{
 			name:          "weekday just after peak",
-			time:          time.Date(2026, 3, 27, 11, 0, 0, 0, loc),
+			time:          time.Date(2026, 3, 27, 12, 0, 0, 0, loc),
 			expectPeak:    false,
 			expectWeekend: false,
 			expectMinutes: 3960,
@@ -80,14 +80,14 @@ func TestLocalPeakStatus(t *testing.T) {
 			time:          time.Date(2026, 3, 26, 20, 0, 0, 0, loc),
 			expectPeak:    false,
 			expectWeekend: false,
-			expectMinutes: 540,
+			expectMinutes: 600,
 		},
 		{
 			name:          "weekday before peak",
 			time:          time.Date(2026, 3, 27, 3, 0, 0, 0, loc),
 			expectPeak:    false,
 			expectWeekend: false,
-			expectMinutes: 120,
+			expectMinutes: 180,
 		},
 		{
 			name:          "saturday",
@@ -108,7 +108,7 @@ func TestLocalPeakStatus(t *testing.T) {
 			time:          time.Date(2026, 3, 27, 15, 0, 0, 0, loc),
 			expectPeak:    false,
 			expectWeekend: false,
-			expectMinutes: 3720,
+			expectMinutes: 3780,
 		},
 	}
 
