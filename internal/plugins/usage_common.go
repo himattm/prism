@@ -233,11 +233,11 @@ func FormatTimeRemaining(d time.Duration, useDays bool, showMinutes bool) string
 	hours := int(d.Hours())
 	minutes := int(d.Minutes()) - hours*60
 
+	if hours == 0 {
+		return fmt.Sprintf("%dm", minutes)
+	}
 	if showMinutes && minutes > 0 {
 		return fmt.Sprintf("%dh%dm", hours, minutes)
-	}
-	if hours == 0 {
-		return "0h"
 	}
 	return fmt.Sprintf("%dh", hours)
 }

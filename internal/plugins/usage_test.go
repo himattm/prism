@@ -335,16 +335,16 @@ func TestFormatTimeRemaining(t *testing.T) {
 		// Hours format with minutes enabled
 		{4*time.Hour + 30*time.Minute, false, true, "4h30m"},
 		{2*time.Hour + 10*time.Minute, false, true, "2h10m"},
-		{45 * time.Minute, false, true, "0h45m"},
-		{10 * time.Minute, false, true, "0h10m"},
+		{45 * time.Minute, false, true, "45m"},
+		{10 * time.Minute, false, true, "10m"},
 		{6 * time.Hour, false, true, "5h"},  // capped at 5h, no remaining minutes
-		{0, false, true, "0h"},              // zero duration
-		{-1 * time.Hour, false, true, "0h"}, // negative treated as 0
+		{0, false, true, "0m"},              // zero duration
+		{-1 * time.Hour, false, true, "0m"}, // negative treated as 0
 
 		// Hours format with minutes disabled
 		{4*time.Hour + 30*time.Minute, false, false, "4h"},
 		{2*time.Hour + 10*time.Minute, false, false, "2h"},
-		{45 * time.Minute, false, false, "0h"},
+		{45 * time.Minute, false, false, "45m"},
 		{6 * time.Hour, false, false, "5h"}, // capped at 5h
 
 		// Days format (showMinutes is ignored)
