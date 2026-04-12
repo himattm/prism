@@ -50,16 +50,27 @@ func DefaultSections() []string {
 	return result
 }
 
-// Load reads and merges configuration from all config files
+// Load reads and merges configuration from all config files.
+// Uses the default Claude Code paths (~/.claude/).
 func Load(projectDir string) Config {
+	return LoadForHarness(projectDir, "")
+}
+
+// LoadForHarness reads and merges configuration using harness-specific paths.
+// If harnessHomeDir is empty, it falls back to the default ~/.claude/ path.
+func LoadForHarness(projectDir string, harnessHomeDir string) Config {
 	cfg := Config{}
 
 	// Load global config first
-	if globalCfg, err := loadFile(globalConfigPath()); err == nil {
+	globalPath := globalConfigPath()
+	if harnessHomeDir != "" {
+		globalPath = filepath.Join(harnessHomeDir, "prism-config.json")
+	}
+	if globalCfg, err := loadFile(globalPath); err == nil {
 		cfg = mergeCfg(cfg, globalCfg)
 	}
 
-	// Load project config
+	// Load project config (Prism's config, stays in .claude/ regardless of harness)
 	if projectDir != "" {
 		projectCfgPath := filepath.Join(projectDir, ".claude", "prism.json")
 		if projectCfg, err := loadFile(projectCfgPath); err == nil {
@@ -81,10 +92,19 @@ func globalConfigPath() string {
 	return filepath.Join(homeDir, ".claude", "prism-config.json")
 }
 
-// PluginsDir returns the path to the plugins directory
+// PluginsDir returns the path to the plugins directory using the default path.
 func PluginsDir() string {
 	homeDir, _ := os.UserHomeDir()
 	return filepath.Join(homeDir, ".claude", "prism-plugins")
+}
+
+// PluginsDirFor returns the path to the plugins directory for a given harness home.
+// If harnessHomeDir is empty, it falls back to the default path.
+func PluginsDirFor(harnessHomeDir string) string {
+	if harnessHomeDir == "" {
+		return PluginsDir()
+	}
+	return filepath.Join(harnessHomeDir, "prism-plugins")
 }
 
 // LoadPluginConfig loads a plugin's own config.json and merges with prism.json overrides

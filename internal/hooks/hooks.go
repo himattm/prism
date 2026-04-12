@@ -32,12 +32,17 @@ type Manager struct {
 	logFile  string
 }
 
-// NewManager creates a new hook manager
+// NewManager creates a new hook manager using the default log path.
 func NewManager() *Manager {
 	homeDir, _ := os.UserHomeDir()
+	return NewManagerFor(filepath.Join(homeDir, ".claude", "prism-hooks.log"))
+}
+
+// NewManagerFor creates a new hook manager with a custom log file path.
+func NewManagerFor(logFile string) *Manager {
 	return &Manager{
 		registry: plugins.NewRegistry(),
-		logFile:  filepath.Join(homeDir, ".claude", "prism-hooks.log"),
+		logFile:  logFile,
 	}
 }
 

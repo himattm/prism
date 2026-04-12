@@ -23,11 +23,16 @@ type Manager struct {
 	pluginDir string
 }
 
-// NewManager creates a new plugin manager
+// NewManager creates a new plugin manager using the default plugin directory.
 func NewManager() *Manager {
 	homeDir, _ := os.UserHomeDir()
+	return NewManagerWithDir(filepath.Join(homeDir, ".claude", "prism-plugins"))
+}
+
+// NewManagerWithDir creates a new plugin manager with a custom plugin directory.
+func NewManagerWithDir(pluginDir string) *Manager {
 	return &Manager{
-		pluginDir: filepath.Join(homeDir, ".claude", "prism-plugins"),
+		pluginDir: pluginDir,
 	}
 }
 

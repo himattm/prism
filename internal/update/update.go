@@ -184,6 +184,12 @@ func compareVersions(a, b string) int {
 	return 0
 }
 
+// HookEntry describes a hook to wire up during migration.
+type HookEntry struct {
+	Event   string
+	Command string
+}
+
 // MigrateSettings ensures all Prism hooks are wired up in settings.json
 // Returns the number of hooks added (0 if already up to date)
 func MigrateSettings() (int, error) {
@@ -194,6 +200,17 @@ func MigrateSettings() (int, error) {
 
 	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
 
+	hookEntries := make([]HookEntry, len(PrismHooks))
+	for i, h := range PrismHooks {
+		hookEntries[i] = HookEntry{Event: h.Event, Command: h.Command}
+	}
+
+	return MigrateSettingsFor(settingsPath, hookEntries)
+}
+
+// MigrateSettingsFor ensures the given hooks are wired up in the settings file
+// at settingsPath. This is the harness-agnostic version of MigrateSettings.
+func MigrateSettingsFor(settingsPath string, hookEntries []HookEntry) (int, error) {
 	// Read existing settings
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
@@ -218,7 +235,7 @@ func MigrateSettings() (int, error) {
 
 	// Check and add missing Prism hooks
 	added := 0
-	for _, h := range PrismHooks {
+	for _, h := range hookEntries {
 		if !hasPrismHook(hooks, h.Event, h.Command) {
 			addPrismHook(hooks, h.Event, h.Command)
 			added++

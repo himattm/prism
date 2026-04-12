@@ -7,10 +7,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/himattm/prism/internal/colors"
 	"github.com/himattm/prism/internal/config"
+	"github.com/himattm/prism/internal/harness"
+	_ "github.com/himattm/prism/internal/harness" // registers all harnesses via init()
 	"github.com/himattm/prism/internal/hooks"
 	"github.com/himattm/prism/internal/plugin"
 	"github.com/himattm/prism/internal/plugins"
@@ -59,6 +62,15 @@ func main() {
 		}
 		handleHook(os.Args[2])
 
+	case "setup":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "Usage: prism setup <harness>")
+			fmt.Fprintln(os.Stderr, "       prism setup --list")
+			fmt.Fprintf(os.Stderr, "\nAvailable harnesses: %s\n", strings.Join(harness.All(), ", "))
+			os.Exit(1)
+		}
+		handleSetup(os.Args[2])
+
 	case "refract":
 		handleRefract()
 
@@ -70,16 +82,25 @@ func main() {
 }
 
 func runStatusLine() {
-	// Read JSON input from stdin
-	var input statusline.Input
-	decoder := json.NewDecoder(os.Stdin)
-	if err := decoder.Decode(&input); err != nil {
+	// Detect which harness is invoking Prism
+	h := harness.Detect()
+
+	// Read raw JSON from stdin
+	raw, err := io.ReadAll(os.Stdin)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Load config
-	cfg := config.Load(input.Workspace.ProjectDir)
+	// Parse input using the harness-specific adapter
+	input, err := h.ParseInput(raw)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing input: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Load config using harness-aware paths
+	cfg := config.LoadForHarness(input.Workspace.ProjectDir, h.HomeDir())
 
 	// Build and render status line
 	sl := statusline.New(input, cfg)
@@ -89,11 +110,13 @@ func runStatusLine() {
 }
 
 func printHelp() {
-	fmt.Printf(`Prism %s - A fast, customizable status line for Claude Code
+	fmt.Printf(`Prism %s - A fast, customizable status line for coding agent CLIs
 
 Usage:
   prism init                  Create .claude/prism.json in current directory
   prism init-global           Create ~/.claude/prism-config.json
+  prism setup <harness>       Configure Prism for a specific agent CLI
+  prism setup --list          List supported agent CLIs
   prism update                Check for Prism updates and install
   prism check-update          Check for Prism updates (no install)
   prism version               Show version
@@ -107,11 +130,15 @@ Plugin commands:
   prism plugin update <name>  Update a plugin (or --all)
   prism plugin remove <name>  Remove a plugin
 
+Supported harnesses: %s
+
 Config precedence (highest to lowest):
   1. .claude/prism.local.json    Your personal overrides (gitignored)
   2. .claude/prism.json          Repo config (commit for your team)
   3. ~/.claude/prism-config.json Global defaults
-`, version.Version)
+
+Set PRISM_HARNESS=<id> to use Prism with a non-default harness.
+`, version.Version, strings.Join(harness.All(), ", "))
 }
 
 func handlePluginCommand(args []string) {
@@ -281,19 +308,90 @@ func handleInitGlobal() {
 	fmt.Println("Created ~/.claude/prism-config.json")
 }
 
+func handleSetup(target string) {
+	if target == "--list" || target == "list" {
+		fmt.Println("Supported harnesses:")
+		for _, id := range harness.All() {
+			h := harness.Get(id)
+			fmt.Printf("  %-12s %s\n", id, h.Name())
+		}
+		return
+	}
+
+	h := harness.Get(target)
+	if h == nil {
+		fmt.Fprintf(os.Stderr, "Unknown harness: %s\n", target)
+		fmt.Fprintf(os.Stderr, "Available: %s\n", strings.Join(harness.All(), ", "))
+		os.Exit(1)
+	}
+
+	homeDir := h.HomeDir()
+
+	// Create the harness home directory if needed
+	if err := os.MkdirAll(homeDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating directory %s: %v\n", homeDir, err)
+		os.Exit(1)
+	}
+
+	// Create global config with harness-appropriate defaults
+	configPath := filepath.Join(homeDir, "prism-config.json")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		cfg := config.Config{
+			ConfigVersion: version.Version,
+			Sections:      h.DefaultSections(),
+		}
+		data, err := json.MarshalIndent(cfg, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if err := os.WriteFile(configPath, data, 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing config: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Created %s\n", configPath)
+	} else {
+		fmt.Printf("Config already exists: %s\n", configPath)
+	}
+
+	// Symlink the prism binary if it doesn't already exist at the harness path
+	binaryPath := filepath.Join(homeDir, "prism")
+	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
+		// Get the current executable path to create a symlink
+		self, err := os.Executable()
+		if err == nil {
+			self, _ = filepath.EvalSymlinks(self)
+			if self != binaryPath {
+				if err := os.Symlink(self, binaryPath); err != nil {
+					fmt.Printf("Note: Could not create symlink at %s: %v\n", binaryPath, err)
+					fmt.Printf("  Copy the prism binary manually: cp %s %s\n", self, binaryPath)
+				} else {
+					fmt.Printf("Created symlink: %s -> %s\n", binaryPath, self)
+				}
+			}
+		}
+	}
+
+	// Print setup instructions for the harness
+	fmt.Printf("\nSetup instructions for %s:\n\n", h.Name())
+	fmt.Println(h.SetupInstructions())
+}
+
 func handleHook(hookType string) {
-	// Read raw JSON from stdin (Claude Code provides session info)
+	// Read raw JSON from stdin (agent harness provides session info)
 	rawInput, _ := io.ReadAll(os.Stdin)
 
 	var input hooks.Input
 	if len(rawInput) > 0 {
 		if err := json.Unmarshal(rawInput, &input); err != nil {
-			// Silent fail for hooks - don't break Claude Code
+			// Silent fail for hooks - don't break the harness
 			input = hooks.Input{}
 		}
 	}
 
-	manager := hooks.NewManager()
+	// Use harness-aware log path
+	h := harness.Detect()
+	manager := hooks.NewManagerFor(harness.LogFileFor(h))
 
 	switch hookType {
 	case "idle":
