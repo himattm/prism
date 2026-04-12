@@ -54,11 +54,21 @@ func (p *TaskQueuePlugin) SetCache(c *cache.Cache) {
 	p.cache = c
 }
 
-// OnHook invalidates task queue cache when Claude becomes idle
+// OnHook handles hook events:
+//   - HookIdle: invalidates task queue data cache (fresh data on next render)
+//   - HookSessionStart: attempts auto-install of tq if not found (runs once per session,
+//     outside the render hot path where it would block for up to 30 seconds)
 func (p *TaskQueuePlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookContext) (string, error) {
-	if hookType == HookIdle && p.cache != nil {
-		// Only invalidate data cache, NOT the install_attempted flag
-		p.cache.DeleteByPrefix("taskqueue:data:")
+	switch hookType {
+	case HookIdle:
+		if p.cache != nil {
+			// Only invalidate data cache, NOT the install_attempted flag
+			p.cache.DeleteByPrefix("taskqueue:data:")
+		}
+	case HookSessionStart:
+		if _, err := exec.LookPath("tq"); err != nil {
+			p.tryAutoInstall(ctx)
+		}
 	}
 	return "", nil
 }
@@ -75,18 +85,10 @@ func (p *TaskQueuePlugin) Execute(ctx context.Context, input plugin.Input) (stri
 		}
 	}
 
-	// Check if tq is installed
+	// Check if tq is installed (auto-install happens in OnHook at session start)
 	tqPath, err := exec.LookPath("tq")
 	if err != nil {
-		// Try auto-install
-		if !p.tryAutoInstall(ctx) {
-			return "", nil
-		}
-		// Re-check after install
-		tqPath, err = exec.LookPath("tq")
-		if err != nil {
-			return "", nil
-		}
+		return "", nil
 	}
 
 	// Run tq list --json with timeout
