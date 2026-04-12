@@ -169,36 +169,30 @@ end if`
 	}
 }
 
-// getSpotifyTrackLinux uses playerctl to get track info on Linux
+// getSpotifyTrackLinux uses playerctl to get track info on Linux.
+// Single command fetches status + metadata together (same pattern as the macOS AppleScript path).
 func getSpotifyTrackLinux(ctx context.Context) *spotifyTrack {
-	// Check status
-	cmd := exec.CommandContext(ctx, "playerctl", "-p", "spotify", "status")
+	cmd := exec.CommandContext(ctx, "playerctl", "-p", "spotify", "metadata", "--format", "{{status}}\t{{artist}}\t{{title}}")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
 		return nil // playerctl not installed or Spotify not running
 	}
-	status := strings.TrimSpace(out.String())
+
+	// Parse tab-separated result: status\tartist\ttitle
+	parts := strings.Split(strings.TrimSpace(out.String()), "\t")
+	if len(parts) != 3 {
+		return nil
+	}
+
+	status := parts[0]
 	if status != "Playing" && status != "Paused" {
 		return nil
 	}
 
-	// Get metadata
-	cmd = exec.CommandContext(ctx, "playerctl", "-p", "spotify", "metadata", "--format", "{{artist}}\t{{title}}")
-	out.Reset()
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return nil
-	}
-
-	parts := strings.Split(strings.TrimSpace(out.String()), "\t")
-	if len(parts) != 2 {
-		return nil
-	}
-
 	return &spotifyTrack{
-		Artist:    parts[0],
-		Title:     parts[1],
+		Artist:    parts[1],
+		Title:     parts[2],
 		IsPlaying: status == "Playing",
 	}
 }
