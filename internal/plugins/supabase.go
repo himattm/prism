@@ -34,10 +34,8 @@ func (p *SupabasePlugin) SetCache(c *cache.Cache) {
 }
 
 // OnHook invalidates Supabase cache when Claude becomes idle
-func (p *SupabasePlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookContext) (string, error) {
-	if hookType == HookIdle && p.cache != nil {
-		p.cache.DeleteByPrefix("supabase:")
-	}
+func (p *SupabasePlugin) OnHook(_ context.Context, hookType HookType, _ HookContext) (string, error) {
+	InvalidateCacheOnHook(hookType, HookIdle, p.cache, "supabase:")
 	return "", nil
 }
 

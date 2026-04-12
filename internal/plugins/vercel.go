@@ -55,10 +55,8 @@ func (p *VercelPlugin) SetCache(c *cache.Cache) {
 }
 
 // OnHook invalidates Vercel deployment cache when Claude becomes idle
-func (p *VercelPlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookContext) (string, error) {
-	if hookType == HookIdle && p.cache != nil {
-		p.cache.DeleteByPrefix("vercel:deploy:")
-	}
+func (p *VercelPlugin) OnHook(_ context.Context, hookType HookType, _ HookContext) (string, error) {
+	InvalidateCacheOnHook(hookType, HookIdle, p.cache, "vercel:deploy:")
 	return "", nil
 }
 

@@ -54,12 +54,10 @@ func (p *TaskQueuePlugin) SetCache(c *cache.Cache) {
 	p.cache = c
 }
 
-// OnHook invalidates task queue cache when Claude becomes idle
-func (p *TaskQueuePlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookContext) (string, error) {
-	if hookType == HookIdle && p.cache != nil {
-		// Only invalidate data cache, NOT the install_attempted flag
-		p.cache.DeleteByPrefix("taskqueue:data:")
-	}
+// OnHook invalidates task queue data cache when Claude becomes idle
+func (p *TaskQueuePlugin) OnHook(_ context.Context, hookType HookType, _ HookContext) (string, error) {
+	// Only invalidate data cache, NOT the install_attempted flag
+	InvalidateCacheOnHook(hookType, HookIdle, p.cache, "taskqueue:data:")
 	return "", nil
 }
 
