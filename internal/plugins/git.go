@@ -185,25 +185,23 @@ func getGitDirty(ctx context.Context, dir string) string {
 }
 
 func getUpstreamStatus(ctx context.Context, dir string) (behind, ahead int) {
-	// Get commits behind upstream
-	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-list", "--count", "HEAD..@{upstream}")
+	// Single command to get both ahead and behind counts
+	// Output format: "<ahead>\t<behind>\n"
+	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-list", "--left-right", "--count", "@{upstream}...HEAD")
 	cmd.Dir = dir
 	var out bytes.Buffer
 	cmd.Stdout = &out
 
-	if cmd.Run() == nil {
-		behind, _ = strconv.Atoi(strings.TrimSpace(out.String()))
+	if cmd.Run() != nil {
+		return 0, 0
 	}
 
-	// Get commits ahead of upstream
-	cmd = exec.CommandContext(ctx, "git", "--no-optional-locks", "rev-list", "--count", "@{upstream}..HEAD")
-	cmd.Dir = dir
-	out.Reset()
-	cmd.Stdout = &out
-
-	if cmd.Run() == nil {
-		ahead, _ = strconv.Atoi(strings.TrimSpace(out.String()))
+	parts := strings.Fields(strings.TrimSpace(out.String()))
+	if len(parts) != 2 {
+		return 0, 0
 	}
 
+	behind, _ = strconv.Atoi(parts[0])
+	ahead, _ = strconv.Atoi(parts[1])
 	return behind, ahead
 }
