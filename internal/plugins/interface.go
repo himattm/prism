@@ -118,6 +118,15 @@ type Hookable interface {
 	OnHook(ctx context.Context, hookType HookType, hookCtx HookContext) (string, error)
 }
 
+// InvalidateCacheOnHook is a helper for the common pattern of clearing
+// cached data by prefix when a specific hook fires. Most plugins use this
+// to invalidate on HookIdle so they get fresh data on the next render.
+func InvalidateCacheOnHook(hookType, targetHook HookType, c *cache.Cache, prefix string) {
+	if hookType == targetHook && c != nil {
+		c.DeleteByPrefix(prefix)
+	}
+}
+
 // GetHookablePlugins returns all plugins implementing Hookable
 func (r *Registry) GetHookablePlugins() []Hookable {
 	var hookable []Hookable

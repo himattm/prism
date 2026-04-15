@@ -36,11 +36,8 @@ func (p *AndroidPlugin) SetCache(c *cache.Cache) {
 }
 
 // OnHook invalidates cache when Claude becomes idle (fresh data on next render)
-func (p *AndroidPlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookContext) (string, error) {
-	if hookType == HookIdle && p.cache != nil {
-		// Delete all android cache entries (any display config)
-		p.cache.DeleteByPrefix("android:")
-	}
+func (p *AndroidPlugin) OnHook(_ context.Context, hookType HookType, _ HookContext) (string, error) {
+	InvalidateCacheOnHook(hookType, HookIdle, p.cache, "android:")
 	return "", nil
 }
 

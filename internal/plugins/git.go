@@ -27,10 +27,8 @@ func (p *GitPlugin) SetCache(c *cache.Cache) {
 }
 
 // OnHook invalidates git cache when Claude becomes idle (fresh data on next render)
-func (p *GitPlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookContext) (string, error) {
-	if hookType == HookIdle && p.cache != nil {
-		p.cache.DeleteByPrefix("git:")
-	}
+func (p *GitPlugin) OnHook(_ context.Context, hookType HookType, _ HookContext) (string, error) {
+	InvalidateCacheOnHook(hookType, HookIdle, p.cache, "git:")
 	return "", nil
 }
 

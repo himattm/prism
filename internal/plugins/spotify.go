@@ -41,10 +41,8 @@ func (p *SpotifyPlugin) SetCache(c *cache.Cache) {
 }
 
 // OnHook invalidates Spotify cache when Claude becomes idle
-func (p *SpotifyPlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookContext) (string, error) {
-	if hookType == HookIdle && p.cache != nil {
-		p.cache.DeleteByPrefix("spotify:")
-	}
+func (p *SpotifyPlugin) OnHook(_ context.Context, hookType HookType, _ HookContext) (string, error) {
+	InvalidateCacheOnHook(hookType, HookIdle, p.cache, "spotify:")
 	return "", nil
 }
 

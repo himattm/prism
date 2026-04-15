@@ -27,10 +27,8 @@ func (p *StackPlugin) Name() string { return "stack" }
 func (p *StackPlugin) SetCache(c *cache.Cache) { p.cache = c }
 
 // OnHook invalidates stack cache on session start (fresh detection)
-func (p *StackPlugin) OnHook(ctx context.Context, hookType HookType, hookCtx HookContext) (string, error) {
-	if hookType == HookSessionStart && p.cache != nil {
-		p.cache.DeleteByPrefix("stack:")
-	}
+func (p *StackPlugin) OnHook(_ context.Context, hookType HookType, _ HookContext) (string, error) {
+	InvalidateCacheOnHook(hookType, HookSessionStart, p.cache, "stack:")
 	return "", nil
 }
 
