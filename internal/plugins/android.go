@@ -3,6 +3,7 @@ package plugins
 import (
 	"bytes"
 	"context"
+	"log"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -82,8 +83,11 @@ func (p *AndroidPlugin) Execute(ctx context.Context, input plugin.Input) (string
 
 	var parts []string
 	for _, serial := range serials {
+		// Batch-fetch all properties for this device in a single adb call
+		props := getAllDeviceProps(ctx, serial)
+
 		// Get display string based on config
-		display := getDeviceDisplay(ctx, serial, cfg.Display)
+		display := getDeviceDisplay(serial, cfg.Display, props)
 
 		// Color the entire device entry uniformly (dim + emerald)
 		deviceStr := dim + green + "⬡ " + display
@@ -132,6 +136,8 @@ func isValidDisplay(display string) bool {
 	return true
 }
 
+var validPkgRegex = regexp.MustCompile(`^[a-zA-Z0-9._*\-]+$`)
+
 func parseAndroidConfig(cfg map[string]any) androidConfig {
 	result := androidConfig{
 		Display: "serial", // Default to full serial
@@ -159,7 +165,14 @@ func parseAndroidConfig(cfg map[string]any) androidConfig {
 	if packages, ok := androidCfg["packages"].([]any); ok {
 		for _, p := range packages {
 			if pkg, ok := p.(string); ok {
-				result.Packages = append(result.Packages, pkg)
+				// Basic validation to prevent command injection via adb shell
+				// Allow letters, numbers, dots, underscores, hyphens, and wildcards
+				if validPkgRegex.MatchString(pkg) {
+					result.Packages = append(result.Packages, pkg)
+				} else {
+					// Invalid package name. Log a warning to standard error.
+					log.Printf("[Prism] WARNING: Invalid package name in android_devices config: '%s'. Ignored to prevent command injection.", pkg)
+				}
 			}
 		}
 	}
@@ -188,6 +201,54 @@ func parseAdbSerials(output string) []string {
 	return serials
 }
 
+// displayFieldToProp maps display field names to Android system property keys.
+var displayFieldToProp = map[string]string{
+	"model":        "ro.product.model",
+	"version":      "ro.build.version.release",
+	"sdk":          "ro.build.version.sdk",
+	"manufacturer": "ro.product.manufacturer",
+	"device":       "ro.product.device",
+	"build":        "ro.build.type",
+	"arch":         "ro.product.cpu.abi",
+}
+
+// getAllDeviceProps fetches all system properties from a device in a single
+// adb call, replacing N individual getprop calls with one bulk dump.
+func getAllDeviceProps(ctx context.Context, serial string) map[string]string {
+	cmd := exec.CommandContext(ctx, "adb", "-s", serial, "shell", "getprop")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	if err := cmd.Run(); err != nil {
+		return nil
+	}
+
+	return parseDevicePropsOutput(out.String())
+}
+
+// parseDevicePropsOutput parses the output of `adb shell getprop`.
+// Each line has the format: [key]: [value]
+func parseDevicePropsOutput(output string) map[string]string {
+	props := make(map[string]string)
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "[") {
+			continue
+		}
+		sepIdx := strings.Index(line, "]: [")
+		if sepIdx < 0 {
+			continue
+		}
+		key := line[1:sepIdx]
+		value := line[sepIdx+4:]
+		if strings.HasSuffix(value, "]") {
+			value = value[:len(value)-1]
+		}
+		props[key] = value
+	}
+	return props
+}
+
 // Available display fields:
 // - serial: Full device serial (e.g., emulator-5560)
 // - model: Device model (e.g., Pixel 6 Pro)
@@ -199,48 +260,36 @@ func parseAdbSerials(output string) []string {
 // - arch: CPU architecture (e.g., arm64-v8a)
 //
 // Combine with colons: "model:version", "device:sdk", "manufacturer:model:version"
-func getDeviceDisplay(ctx context.Context, serial string, display string) string {
-	// Handle compound display (e.g., "model:version", "manufacturer:model:version")
+func getDeviceDisplay(serial string, display string, props map[string]string) string {
 	fields := strings.Split(display, ":")
 	if len(fields) > 1 {
-		return formatCompoundDisplay(ctx, serial, fields)
+		return formatCompoundDisplay(serial, fields, props)
 	}
 
-	// Single field
-	value := getDisplayField(ctx, serial, display)
+	value := getDisplayField(serial, display, props)
 	if value == "" {
 		return serial // Fallback
 	}
 	return value
 }
 
-func getDisplayField(ctx context.Context, serial string, field string) string {
-	switch field {
-	case "serial":
+func getDisplayField(serial string, field string, props map[string]string) string {
+	if field == "serial" {
 		return serial
-	case "model":
-		return getDeviceProp(ctx, serial, "ro.product.model")
-	case "version":
-		return getDeviceProp(ctx, serial, "ro.build.version.release")
-	case "sdk":
-		return getDeviceProp(ctx, serial, "ro.build.version.sdk")
-	case "manufacturer":
-		return getDeviceProp(ctx, serial, "ro.product.manufacturer")
-	case "device":
-		return getDeviceProp(ctx, serial, "ro.product.device")
-	case "build":
-		return getDeviceProp(ctx, serial, "ro.build.type")
-	case "arch":
-		return getDeviceProp(ctx, serial, "ro.product.cpu.abi")
-	default:
+	}
+	propKey, ok := displayFieldToProp[field]
+	if !ok {
 		return ""
 	}
+	value := props[propKey]
+	value = strings.TrimPrefix(value, "Android SDK built for ")
+	return value
 }
 
-func formatCompoundDisplay(ctx context.Context, serial string, fields []string) string {
+func formatCompoundDisplay(serial string, fields []string, props map[string]string) string {
 	var values []string
 	for _, field := range fields {
-		if v := getDisplayField(ctx, serial, field); v != "" {
+		if v := getDisplayField(serial, field, props); v != "" {
 			values = append(values, v)
 		}
 	}
@@ -257,21 +306,6 @@ func formatCompoundDisplay(ctx context.Context, serial string, fields []string) 
 	}
 
 	return values[0] + " (" + strings.Join(values[1:], " ") + ")"
-}
-
-func getDeviceProp(ctx context.Context, serial string, prop string) string {
-	cmd := exec.CommandContext(ctx, "adb", "-s", serial, "shell", "getprop", prop)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-
-	if err := cmd.Run(); err != nil {
-		return ""
-	}
-
-	result := strings.TrimSpace(out.String())
-	// Clean up common prefixes
-	result = strings.TrimPrefix(result, "Android SDK built for ")
-	return result
 }
 
 func getAppVersion(ctx context.Context, serial string, packages []string) string {

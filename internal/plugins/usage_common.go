@@ -283,6 +283,75 @@ func LevelToBarChar(level int) rune {
 	return BarChars[level]
 }
 
+// GetUsageData fetches usage data with a multi-tier caching strategy:
+// 1. In-memory cache (60s TTL)
+// 2. Disk cache (5m freshness threshold, returns stale data while busy)
+// 3. API fetch (only when idle)
+//
+// This is the shared implementation used by all usage plugins (usage, usage_bars, usage_text).
+func GetUsageData(c cacheInterface, ctx context.Context, isIdle bool) (*UsageResponse, bool, error) {
+	// Check in-memory cache first
+	if cached, ok := c.Get(usageCacheKey); ok {
+		var usage UsageResponse
+		if err := json.Unmarshal([]byte(cached), &usage); err == nil {
+			return &usage, false, nil
+		}
+	}
+
+	// Only fetch fresh data when idle
+	if !isIdle {
+		// Return last-known data from disk while busy
+		usage, stale, ok := loadUsageCache()
+		if ok {
+			return usage, stale, nil
+		}
+		return nil, false, nil
+	}
+
+	// Get OAuth token (cached)
+	token, err := GetCachedOAuthToken(c)
+	if err != nil {
+		// API unavailable — fall back to disk cache
+		usage, stale, ok := loadUsageCache()
+		if ok {
+			return usage, stale, nil
+		}
+		return nil, false, err
+	}
+
+	// Fetch usage data
+	usage, err := FetchUsage(ctx, token)
+	if err != nil {
+		// API unavailable — fall back to disk cache
+		cached, stale, ok := loadUsageCache()
+		if ok {
+			return cached, stale, nil
+		}
+		return nil, false, err
+	}
+
+	// Cache the result (in-memory and on disk)
+	if data, err := json.Marshal(usage); err == nil {
+		c.Set(usageCacheKey, string(data), usageCacheTTL)
+	}
+	saveUsageCache(usage)
+
+	return usage, false, nil
+}
+
+// GetUsageColor returns the appropriate color based on utilization level.
+// Matches context bar thresholds: >= 90% red, >= 70% yellow, < 70% white
+func GetUsageColor(utilization float64, white, yellow, red string) string {
+	switch {
+	case utilization >= 90:
+		return red
+	case utilization >= 70:
+		return yellow
+	default:
+		return white
+	}
+}
+
 // loadUsageCache reads cached usage data from disk (survives across process invocations).
 // Returns (data, false, true) if the file is fresh (within usageDiskCacheTTL),
 // (data, true, true) if the file exists but is stale, or (nil, false, false) if

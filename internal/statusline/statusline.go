@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -527,7 +528,11 @@ func getGitDiffStats(projectDir string) (int, int) {
 	cacheKey := "diffstats:" + projectDir
 	if cached, ok := statusCache.Get(cacheKey); ok {
 		var added, removed int
-		fmt.Sscanf(cached, "%d,%d", &added, &removed)
+		parts := strings.SplitN(cached, ",", 2)
+		if len(parts) == 2 {
+			added, _ = strconv.Atoi(parts[0])
+			removed, _ = strconv.Atoi(parts[1])
+		}
 		return added, removed
 	}
 
@@ -542,10 +547,16 @@ func getGitDiffStats(projectDir string) (int, int) {
 	var added, removed int
 	lines := strings.Split(string(output), "\n")
 	for _, line := range lines {
-		var a, r int
-		fmt.Sscanf(line, "%d\t%d", &a, &r)
-		added += a
-		removed += r
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			a, _ := strconv.Atoi(parts[0])
+			r, _ := strconv.Atoi(parts[1])
+			added += a
+			removed += r
+		}
 	}
 
 	// Cache the result

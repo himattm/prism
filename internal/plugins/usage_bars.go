@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -114,40 +113,6 @@ func (p *UsageBarsPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 }
 
 func (p *UsageBarsPlugin) getUsageData(ctx context.Context, isIdle bool) (*UsageResponse, error) {
-	// Check in-memory cache first
-	if cached, ok := p.cache.Get(usageCacheKey); ok {
-		var usage UsageResponse
-		if err := json.Unmarshal([]byte(cached), &usage); err == nil {
-			return &usage, nil
-		}
-	}
-
-	// Only fetch fresh data when idle
-	if !isIdle {
-		// Return last-known data from disk while busy
-		if usage, _, ok := loadUsageCache(); ok {
-			return usage, nil
-		}
-		return nil, nil
-	}
-
-	// Get OAuth token (cached)
-	token, err := GetCachedOAuthToken(p.cache)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fetch usage data
-	usage, err := FetchUsage(ctx, token)
-	if err != nil {
-		return nil, err
-	}
-
-	// Cache the result (in-memory and on disk)
-	if data, err := json.Marshal(usage); err == nil {
-		p.cache.Set(usageCacheKey, string(data), usageCacheTTL)
-	}
-	saveUsageCache(usage)
-
-	return usage, nil
+	usage, _, err := GetUsageData(p.cache, ctx, isIdle)
+	return usage, err
 }

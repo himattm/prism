@@ -385,9 +385,9 @@ func TestGetUsageColor(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := getUsageColor(tt.utilization, white, yellow, red)
+		result := GetUsageColor(tt.utilization, white, yellow, red)
 		if result != tt.expected {
-			t.Errorf("getUsageColor(%v): expected %s, got %s", tt.utilization, tt.expected, result)
+			t.Errorf("GetUsageColor(%v): expected %s, got %s", tt.utilization, tt.expected, result)
 		}
 	}
 }

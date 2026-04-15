@@ -165,37 +165,104 @@ emulator-5562	offline
 }
 
 func TestGetDisplayField_Serial(t *testing.T) {
-	ctx := context.Background()
 	serial := "test-serial-123"
+	props := map[string]string{}
 
-	result := getDisplayField(ctx, serial, "serial")
+	result := getDisplayField(serial, "serial", props)
 	if result != serial {
 		t.Errorf("expected %s, got %s", serial, result)
 	}
 }
 
 func TestGetDisplayField_Unknown(t *testing.T) {
-	ctx := context.Background()
+	props := map[string]string{}
 
-	result := getDisplayField(ctx, "serial", "unknown")
+	result := getDisplayField("serial", "unknown", props)
 	if result != "" {
 		t.Errorf("expected empty string for unknown field, got %s", result)
 	}
 }
 
+func TestGetDisplayField_FromProps(t *testing.T) {
+	props := map[string]string{
+		"ro.product.model":         "Pixel 6",
+		"ro.build.version.release": "14",
+		"ro.build.version.sdk":     "34",
+		"ro.product.manufacturer":  "Google",
+		"ro.product.device":        "cheetah",
+		"ro.build.type":            "userdebug",
+		"ro.product.cpu.abi":       "arm64-v8a",
+	}
+
+	tests := []struct {
+		field    string
+		expected string
+	}{
+		{"model", "Pixel 6"},
+		{"version", "14"},
+		{"sdk", "34"},
+		{"manufacturer", "Google"},
+		{"device", "cheetah"},
+		{"build", "userdebug"},
+		{"arch", "arm64-v8a"},
+		{"serial", "test-serial"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.field, func(t *testing.T) {
+			result := getDisplayField("test-serial", tt.field, props)
+			if result != tt.expected {
+				t.Errorf("field %s: expected %s, got %s", tt.field, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestParseAllDeviceProps(t *testing.T) {
+	// Simulate adb shell getprop output format
+	output := `[ro.product.model]: [Pixel 6]
+[ro.build.version.release]: [14]
+[ro.build.version.sdk]: [34]
+[ro.product.manufacturer]: [Google]
+[ro.product.device]: [cheetah]
+[ro.build.type]: [userdebug]
+[ro.product.cpu.abi]: [arm64-v8a]
+`
+	// Test the parsing logic directly
+	props := parseDevicePropsOutput(output)
+	if props["ro.product.model"] != "Pixel 6" {
+		t.Errorf("expected 'Pixel 6', got '%s'", props["ro.product.model"])
+	}
+	if props["ro.build.version.sdk"] != "34" {
+		t.Errorf("expected '34', got '%s'", props["ro.build.version.sdk"])
+	}
+	if len(props) != 7 {
+		t.Errorf("expected 7 props, got %d", len(props))
+	}
+}
+
 func TestFormatCompoundDisplay(t *testing.T) {
-	// Test with mock values - can't test actual device calls without a device
-	ctx := context.Background()
 	serial := "test-serial"
+	props := map[string]string{
+		"ro.product.model":         "Pixel 6",
+		"ro.build.version.release": "14",
+	}
 
 	// Test serial-only compound (should work without device)
-	result := formatCompoundDisplay(ctx, serial, []string{"serial"})
+	result := formatCompoundDisplay(serial, []string{"serial"}, props)
 	if result != serial {
 		t.Errorf("expected %s, got %s", serial, result)
 	}
 
+	// Test with model:version
+	result = formatCompoundDisplay(serial, []string{"model", "version"}, props)
+	expected := "Pixel 6 (14)"
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+
 	// Test with unknown fields (should fallback to serial)
-	result = formatCompoundDisplay(ctx, serial, []string{"nonexistent"})
+	result = formatCompoundDisplay(serial, []string{"nonexistent"}, props)
 	if result != serial {
 		t.Errorf("expected %s for unknown fields, got %s", serial, result)
 	}
@@ -224,6 +291,12 @@ func TestAndroidPlugin_Integration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Batch-fetch all properties
+	props := getAllDeviceProps(ctx, serial)
+	if props == nil {
+		t.Fatal("getAllDeviceProps returned nil")
+	}
+
 	// Test all display fields
 	displayFields := []struct {
 		field    string
@@ -240,7 +313,7 @@ func TestAndroidPlugin_Integration(t *testing.T) {
 
 	for _, df := range displayFields {
 		t.Run("display_"+df.field, func(t *testing.T) {
-			result := getDisplayField(ctx, serial, df.field)
+			result := getDisplayField(serial, df.field, props)
 
 			// Get expected value directly from device
 			cmd := exec.CommandContext(ctx, "adb", "-s", serial, "shell", "getprop", df.property)

@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/himattm/prism/internal/cache"
@@ -70,7 +69,7 @@ func (p *UsageTextPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 	if showHours && usage.FiveHour != nil {
 		timeRemaining, _ := TimeUntilReset(usage.FiveHour.ResetsAt)
 		timeStr := FormatTimeRemaining(timeRemaining, false, showMinutes)
-		color := getUrgencyColor(usage.FiveHour.Utilization, white, yellow, red)
+		color := GetUsageColor(usage.FiveHour.Utilization, white, yellow, red)
 
 		result += fmt.Sprintf("%s%s:%.0f%%%s",
 			color, timeStr, usage.FiveHour.Utilization, reset)
@@ -83,7 +82,7 @@ func (p *UsageTextPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 		}
 		timeRemaining, _ := TimeUntilReset(usage.SevenDay.ResetsAt)
 		timeStr := FormatTimeRemaining(timeRemaining, true, false)
-		color := getUrgencyColor(usage.SevenDay.Utilization, white, yellow, red)
+		color := GetUsageColor(usage.SevenDay.Utilization, white, yellow, red)
 
 		result += fmt.Sprintf("%s%s:%.0f%%%s",
 			color, timeStr, usage.SevenDay.Utilization, reset)
@@ -96,7 +95,7 @@ func (p *UsageTextPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 		}
 		timeRemaining, _ := TimeUntilReset(usage.SevenDayOpus.ResetsAt)
 		timeStr := FormatTimeRemaining(timeRemaining, true, false)
-		color := getUrgencyColor(usage.SevenDayOpus.Utilization, white, yellow, red)
+		color := GetUsageColor(usage.SevenDayOpus.Utilization, white, yellow, red)
 
 		result += fmt.Sprintf("%s%s:%.0f%%%s",
 			color, timeStr, usage.SevenDayOpus.Utilization, reset)
@@ -110,54 +109,7 @@ func (p *UsageTextPlugin) Execute(ctx context.Context, input plugin.Input) (stri
 	return result, nil
 }
 
-// getUrgencyColor returns the appropriate color based on utilization level
-// Matches context bar thresholds: >= 90% red, >= 70% yellow, < 70% white
-func getUrgencyColor(utilization float64, white, yellow, red string) string {
-	switch {
-	case utilization >= 90:
-		return red
-	case utilization >= 70:
-		return yellow
-	default:
-		return white
-	}
-}
-
 func (p *UsageTextPlugin) getUsageData(ctx context.Context, isIdle bool) (*UsageResponse, error) {
-	// Check in-memory cache first
-	if cached, ok := p.cache.Get(usageCacheKey); ok {
-		var usage UsageResponse
-		if err := json.Unmarshal([]byte(cached), &usage); err == nil {
-			return &usage, nil
-		}
-	}
-
-	// Only fetch fresh data when idle
-	if !isIdle {
-		// Return last-known data from disk while busy
-		if usage, _, ok := loadUsageCache(); ok {
-			return usage, nil
-		}
-		return nil, nil
-	}
-
-	// Get OAuth token (cached)
-	token, err := GetCachedOAuthToken(p.cache)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fetch usage data
-	usage, err := FetchUsage(ctx, token)
-	if err != nil {
-		return nil, err
-	}
-
-	// Cache the result (in-memory and on disk)
-	if data, err := json.Marshal(usage); err == nil {
-		p.cache.Set(usageCacheKey, string(data), usageCacheTTL)
-	}
-	saveUsageCache(usage)
-
-	return usage, nil
+	usage, _, err := GetUsageData(p.cache, ctx, isIdle)
+	return usage, err
 }

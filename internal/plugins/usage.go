@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -118,11 +117,14 @@ func (p *UsagePlugin) Execute(ctx context.Context, input plugin.Input) (string, 
 	hasOAuth := p.hasOAuthCredentials()
 
 	var result string
-	var err error
 
 	if hasOAuth {
 		// Max/Pro user - show usage limits
+		var err error
 		result, err = p.renderUsageLimits(ctx, input, cfg)
+		if err != nil {
+			return "", err
+		}
 	} else {
 		// API billing user - show cost
 		result = p.renderCost(input, cfg)
@@ -133,7 +135,7 @@ func (p *UsagePlugin) Execute(ctx context.Context, input plugin.Input) (string, 
 		p.cache.Set(usageRenderedKey, "1", usageRenderedTTL)
 	}
 
-	return result, err
+	return result, nil
 }
 
 // hasOAuthCredentials checks if OAuth credentials exist
@@ -228,7 +230,7 @@ func (p *UsagePlugin) renderText(input plugin.Input, usage *UsageResponse, cfg u
 	if cfg.showHours && usage.FiveHour != nil {
 		timeRemaining, _ := TimeUntilReset(usage.FiveHour.ResetsAt)
 		timeStr := FormatTimeRemaining(timeRemaining, false, cfg.showMinutes)
-		color := getUsageColor(usage.FiveHour.Utilization, white, yellow, red)
+		color := GetUsageColor(usage.FiveHour.Utilization, white, yellow, red)
 		result += fmt.Sprintf("%s%s:%.0f%%%s", color, timeStr, usage.FiveHour.Utilization, reset)
 	}
 
@@ -239,7 +241,7 @@ func (p *UsagePlugin) renderText(input plugin.Input, usage *UsageResponse, cfg u
 		}
 		timeRemaining, _ := TimeUntilReset(usage.SevenDay.ResetsAt)
 		timeStr := FormatTimeRemaining(timeRemaining, true, false)
-		color := getUsageColor(usage.SevenDay.Utilization, white, yellow, red)
+		color := GetUsageColor(usage.SevenDay.Utilization, white, yellow, red)
 		result += fmt.Sprintf("%s%s:%.0f%%%s", color, timeStr, usage.SevenDay.Utilization, reset)
 	}
 
@@ -250,7 +252,7 @@ func (p *UsagePlugin) renderText(input plugin.Input, usage *UsageResponse, cfg u
 		}
 		timeRemaining, _ := TimeUntilReset(usage.SevenDayOpus.ResetsAt)
 		timeStr := FormatTimeRemaining(timeRemaining, true, false)
-		color := getUsageColor(usage.SevenDayOpus.Utilization, white, yellow, red)
+		color := GetUsageColor(usage.SevenDayOpus.Utilization, white, yellow, red)
 		result += fmt.Sprintf("%s%s:%.0f%%%s", color, timeStr, usage.SevenDayOpus.Utilization, reset)
 	}
 
@@ -330,65 +332,6 @@ func (p *UsagePlugin) renderStale(input plugin.Input, usage *UsageResponse, cfg 
 	return p.renderText(staleInput, usage, cfg)
 }
 
-// getUsageColor returns the appropriate color based on utilization level
-// Matches context bar thresholds: >= 90% red, >= 70% yellow, < 70% white
-func getUsageColor(utilization float64, white, yellow, red string) string {
-	switch {
-	case utilization >= 90:
-		return red
-	case utilization >= 70:
-		return yellow
-	default:
-		return white
-	}
-}
-
 func (p *UsagePlugin) getUsageData(ctx context.Context, isIdle bool) (*UsageResponse, bool, error) {
-	// Check in-memory cache first
-	if cached, ok := p.cache.Get(usageCacheKey); ok {
-		var usage UsageResponse
-		if err := json.Unmarshal([]byte(cached), &usage); err == nil {
-			return &usage, false, nil
-		}
-	}
-
-	// Only fetch fresh data when idle
-	if !isIdle {
-		// Return last-known data from disk while busy
-		usage, stale, ok := loadUsageCache()
-		if ok {
-			return usage, stale, nil
-		}
-		return nil, false, nil
-	}
-
-	// Get OAuth token (cached)
-	token, err := GetCachedOAuthToken(p.cache)
-	if err != nil {
-		// API unavailable — fall back to disk cache
-		usage, stale, ok := loadUsageCache()
-		if ok {
-			return usage, stale, nil
-		}
-		return nil, false, err
-	}
-
-	// Fetch usage data
-	usage, err := FetchUsage(ctx, token)
-	if err != nil {
-		// API unavailable — fall back to disk cache
-		cached, stale, ok := loadUsageCache()
-		if ok {
-			return cached, stale, nil
-		}
-		return nil, false, err
-	}
-
-	// Cache the result (in-memory and on disk)
-	if data, err := json.Marshal(usage); err == nil {
-		p.cache.Set(usageCacheKey, string(data), usageCacheTTL)
-	}
-	saveUsageCache(usage)
-
-	return usage, false, nil
+	return GetUsageData(p.cache, ctx, isIdle)
 }
