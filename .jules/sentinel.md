@@ -1,0 +1,4 @@
+## 2024-05-18 - Command Injection in Android Plugin
+**Vulnerability:** Unsanitized package names from user configuration were passed directly into `adb shell dumpsys package <pkg>`. Since `adb` sends the combined arguments to the device's shell, shell metacharacters in the package name could lead to command injection on the connected Android device.
+**Learning:** `exec.CommandContext` protects against local command injection because it executes the binary directly without a shell. However, when the executed binary (like `adb`) passes the arguments to a remote shell, injection is still possible.
+**Prevention:** Strictly validate all configuration data passed to external tools, even if using `exec.Command`, using a regex allowlist (e.g., `^[a-zA-Z0-9._*\-]+$`) before including it in the command arguments.
