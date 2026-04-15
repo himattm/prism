@@ -3,6 +3,7 @@ package plugins
 import (
 	"bytes"
 	"context"
+	"log"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -135,6 +136,8 @@ func isValidDisplay(display string) bool {
 	return true
 }
 
+var validPkgRegex = regexp.MustCompile(`^[a-zA-Z0-9._*\-]+$`)
+
 func parseAndroidConfig(cfg map[string]any) androidConfig {
 	result := androidConfig{
 		Display: "serial", // Default to full serial
@@ -162,7 +165,14 @@ func parseAndroidConfig(cfg map[string]any) androidConfig {
 	if packages, ok := androidCfg["packages"].([]any); ok {
 		for _, p := range packages {
 			if pkg, ok := p.(string); ok {
-				result.Packages = append(result.Packages, pkg)
+				// Basic validation to prevent command injection via adb shell
+				// Allow letters, numbers, dots, underscores, hyphens, and wildcards
+				if validPkgRegex.MatchString(pkg) {
+					result.Packages = append(result.Packages, pkg)
+				} else {
+					// Invalid package name. Log a warning to standard error.
+					log.Printf("[Prism] WARNING: Invalid package name in android_devices config: '%s'. Ignored to prevent command injection.", pkg)
+				}
 			}
 		}
 	}
