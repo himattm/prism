@@ -1,0 +1,3 @@
+## 2024-06-25 - Avoid map allocation for ColorMap() and cache in StatusLine
+**Learning:** `colors.ColorMap()` creates and returns a new map of all ANSI color codes every time it's called. Calling this repeatedly within the `runPlugin` loop in `statusline.go` results in unnecessary memory allocations per plugin execution. Modifying `colors.ColorMap()` to return a shared map introduces thread-safety issues, and returning a deep copy still performs allocations.
+**Action:** Instead of changing `colors.ColorMap()`, the `StatusLine` struct was updated to cache the color map during instantiation (`New()`). This cached map is then reused for all plugins executed during that status line render, significantly reducing allocations without risking shared mutable state globally.
