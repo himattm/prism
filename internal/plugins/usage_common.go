@@ -391,5 +391,5 @@ func saveUsageCache(u *UsageResponse) {
 	if err != nil {
 		return
 	}
-	os.WriteFile(path, data, 0644)
+	secureWriteFile(path, data, 0644)
 }
