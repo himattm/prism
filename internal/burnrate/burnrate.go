@@ -64,12 +64,31 @@ func LoadOrCreateSnapshotAt(sessionID string, currentCost float64, now time.Time
 		return nil, false, err
 	}
 
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+	// Create a temporary file with an unpredictable name
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return nil, false, err
 	}
+	tmpPath := f.Name()
+	defer os.Remove(tmpPath) // Clean up if rename fails
+
+	// Match original permissions (os.CreateTemp defaults to 0600)
+	if err := f.Chmod(0644); err != nil {
+		f.Close()
+		return nil, false, err
+	}
+
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return nil, false, err
+	}
+
+	// Close before renaming to avoid errors on Windows
+	if err := f.Close(); err != nil {
+		return nil, false, err
+	}
+
 	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
 		return nil, false, err
 	}
 

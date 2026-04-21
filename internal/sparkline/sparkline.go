@@ -138,10 +138,31 @@ func Save(sessionID, metric string, b *Buffer) {
 	if err != nil {
 		return
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+
+	// Create a temporary file with an unpredictable name
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return
 	}
+	tmp := f.Name()
+	defer os.Remove(tmp) // Clean up if rename fails
+
+	// Match original permissions (os.CreateTemp defaults to 0600)
+	if err := f.Chmod(0644); err != nil {
+		f.Close()
+		return
+	}
+
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return
+	}
+
+	// Close before renaming to avoid errors on Windows
+	if err := f.Close(); err != nil {
+		return
+	}
+
 	os.Rename(tmp, path)
 }
 
