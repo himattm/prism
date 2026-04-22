@@ -391,5 +391,27 @@ func saveUsageCache(u *UsageResponse) {
 	if err != nil {
 		return
 	}
-	os.WriteFile(path, data, 0644)
+
+	// Write to temporary file first to prevent symlink attacks
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), "prism-usage-cache-*")
+	if err != nil {
+		return
+	}
+	tmpName := tmpFile.Name()
+
+	// Ensure we clean up temp file if rename fails
+	defer os.Remove(tmpName)
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		return
+	}
+
+	if err := tmpFile.Chmod(0644); err != nil {
+		tmpFile.Close()
+		return
+	}
+	tmpFile.Close()
+
+	os.Rename(tmpName, path)
 }
