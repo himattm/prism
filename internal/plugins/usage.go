@@ -35,15 +35,10 @@ func (p *UsagePlugin) OnHook(ctx context.Context, hookType HookType, _ HookConte
 	if hookType != HookIdle {
 		return "", nil
 	}
-	token, err := GetCachedOAuthToken(p.cache)
-	if err != nil || token == "" {
-		return "", nil
-	}
-	usage, err := FetchUsage(ctx, token)
-	if err != nil {
-		return "", nil
-	}
-	saveUsageCache(usage)
+	// GetUsageData handles token lookup, API fetch, and writing both the
+	// in-memory and disk caches. We discard the results — the hook's only
+	// job is to populate the disk cache for the next render.
+	_, _, _ = GetUsageData(p.cache, ctx, true)
 	return "", nil
 }
 
