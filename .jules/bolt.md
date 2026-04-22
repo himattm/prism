@@ -1,0 +1,3 @@
+## 2025-04-22 - Cache map allocations in performance-sensitive plugin executions
+**Learning:** In performance-sensitive areas like the status line rendering where plugins run repeatedly and potentially concurrently, avoiding repeated large map allocations (like `colors.ColorMap()`) is important.
+**Action:** Cache static data maps at the instance level (e.g. `StatusLine` struct) during initialization to minimize allocations and ensure thread-safety, rather than regenerating the maps per plugin execution.
