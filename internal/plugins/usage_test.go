@@ -800,6 +800,49 @@ func searchString(s, substr string) bool {
 	return false
 }
 
+func TestUsagePlugin_OnHook_NonIdleIgnored(t *testing.T) {
+	p := &UsagePlugin{}
+	p.SetCache(cache.New())
+
+	// Non-idle hook types should be a no-op: no network call, no disk write.
+	for _, hook := range []HookType{HookBusy, HookSessionStart, HookSessionEnd, HookPreCompact} {
+		out, err := p.OnHook(context.Background(), hook, HookContext{})
+		if err != nil {
+			t.Errorf("OnHook(%s) returned error: %v", hook, err)
+		}
+		if out != "" {
+			t.Errorf("OnHook(%s) returned output %q, expected empty", hook, out)
+		}
+	}
+}
+
+func TestUsagePlugin_OnHook_IdleWithoutOAuthDoesNotFetch(t *testing.T) {
+	// Without OAuth credentials, HookIdle should exit early without making
+	// a network call or touching the disk cache.
+	path := filepath.Join(os.TempDir(), usageDiskCacheFile)
+	os.Remove(path)
+	defer os.Remove(path)
+
+	p := &UsagePlugin{}
+	c := cache.New()
+	// Pre-seed an invalid empty token lookup: an empty cache will cause
+	// GetCachedOAuthToken to try GetOAuthToken, which in a test env without
+	// ~/.claude/.credentials.json will fail — the hook must handle that gracefully.
+	p.SetCache(c)
+
+	out, err := p.OnHook(context.Background(), HookIdle, HookContext{})
+	if err != nil {
+		t.Errorf("expected nil error when OAuth unavailable, got %v", err)
+	}
+	if out != "" {
+		t.Errorf("expected empty output, got %q", out)
+	}
+	// No disk write should have happened.
+	if _, err := os.Stat(path); err == nil {
+		t.Error("OnHook should not write disk cache when OAuth is unavailable")
+	}
+}
+
 func TestTimeUntilReset(t *testing.T) {
 	// Test with a future time
 	futureTime := time.Now().Add(2 * time.Hour).Format(time.RFC3339)

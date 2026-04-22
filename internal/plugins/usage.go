@@ -27,6 +27,26 @@ func (p *UsagePlugin) SetCache(c *cache.Cache) {
 	p.cache = c
 }
 
+// OnHook refreshes the usage disk cache when Claude becomes idle so later
+// renders (which are mostly in busy state) show current data. Without this,
+// usage only refreshes when a render happens to coincide with Claude being
+// idle — in practice rare, leaving the disk cache stale for minutes.
+func (p *UsagePlugin) OnHook(ctx context.Context, hookType HookType, _ HookContext) (string, error) {
+	if hookType != HookIdle {
+		return "", nil
+	}
+	token, err := GetCachedOAuthToken(p.cache)
+	if err != nil || token == "" {
+		return "", nil
+	}
+	usage, err := FetchUsage(ctx, token)
+	if err != nil {
+		return "", nil
+	}
+	saveUsageCache(usage)
+	return "", nil
+}
+
 // usageConfig holds all configuration options for the usage plugin
 type usageConfig struct {
 	// Max/Pro plan options (usage_plan subsection)
