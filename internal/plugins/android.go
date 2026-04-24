@@ -137,6 +137,7 @@ func isValidDisplay(display string) bool {
 }
 
 var validPkgRegex = regexp.MustCompile(`^[a-zA-Z0-9._*\-]+$`)
+var validSerialRegex = regexp.MustCompile(`^[a-zA-Z0-9._:/\-]+$`)
 
 func parseAndroidConfig(cfg map[string]any) androidConfig {
 	result := androidConfig{
@@ -194,7 +195,12 @@ func parseAdbSerials(output string) []string {
 		// Parse "SERIAL\tSTATE" format
 		parts := strings.Fields(line)
 		if len(parts) >= 2 && parts[1] == "device" {
-			serials = append(serials, parts[0])
+			serial := parts[0]
+			if validSerialRegex.MatchString(serial) {
+				serials = append(serials, serial)
+			} else {
+				log.Printf("[Prism] WARNING: Invalid serial number from adb output: '%s'. Ignored to prevent command injection.", serial)
+			}
 		}
 	}
 
