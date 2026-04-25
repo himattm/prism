@@ -391,5 +391,21 @@ func saveUsageCache(u *UsageResponse) {
 	if err != nil {
 		return
 	}
-	os.WriteFile(path, data, 0644)
+
+	// Use safe temp file creation to prevent symlink attacks
+	f, err := os.CreateTemp(filepath.Dir(path), usageDiskCacheFile+"-*")
+	if err != nil {
+		return
+	}
+	tmpName := f.Name()
+	defer os.Remove(tmpName)
+
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return
+	}
+
+	f.Chmod(0644)
+	f.Close()
+	os.Rename(tmpName, path)
 }
