@@ -1,0 +1,3 @@
+## 2024-04-27 - Cache static color map in StatusLine to reduce allocations
+**Learning:** In performance-sensitive areas with concurrent operations (like executing multiple plugins), recreating a large map with over 100 entries (`colors.ColorMap()`) for every execution leads to unnecessary memory allocations and garbage collection overhead.
+**Action:** Instead of repeatedly generating static maps or relying on global package-level variables that could introduce shared mutable state risks, cache static data maps at the instance level (e.g., in the `StatusLine` struct during initialization). This ensures thread-safety while minimizing allocations.
