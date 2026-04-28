@@ -1,0 +1,4 @@
+## 2025-05-18 - Prevent Predictable Temporary Filenames during Atomic File Writes
+**Vulnerability:** Found predictable temporary filenames in atomic file writes (e.g., `path + ".tmp"`) using `os.WriteFile` in `internal/burnrate/burnrate.go` and `internal/sparkline/sparkline.go`. This opens up symlink attacks during the predictable write, leading to potential unintended file overrides and privilege escalation.
+**Learning:** It existed because `os.WriteFile` + `os.Rename` is a common but incomplete pattern for atomic file writes. The initial write must go to a file with an unpredictable name to prevent an attacker from creating a symlink before the write happens.
+**Prevention:** Always use `os.CreateTemp` to generate an unpredictable temporary file for the initial write. Ensure it is created in the same directory as the target path (`filepath.Dir(path)`), close the file handle, and perform the `os.Rename` with explicit permission handling (`Chmod`).

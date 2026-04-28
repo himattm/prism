@@ -138,11 +138,32 @@ func Save(sessionID, metric string, b *Buffer) {
 	if err != nil {
 		return
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+
+	dir := filepath.Dir(path)
+	tmpFile, err := os.CreateTemp(dir, "prism-spark-*")
+	if err != nil {
 		return
 	}
-	os.Rename(tmp, path)
+	tmpPath := tmpFile.Name()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return
+	}
+	if err := tmpFile.Chmod(0644); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return
+	}
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+	}
 }
 
 // PushAndSave is a convenience that loads, pushes, saves, and returns the buffer
