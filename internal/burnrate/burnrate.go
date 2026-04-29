@@ -64,10 +64,29 @@ func LoadOrCreateSnapshotAt(sessionID string, currentCost float64, now time.Time
 		return nil, false, err
 	}
 
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+"-*")
+	if err != nil {
 		return nil, false, err
 	}
+	tmpPath := tmpFile.Name()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return nil, false, err
+	}
+
+	if err := tmpFile.Chmod(0644); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return nil, false, err
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return nil, false, err
+	}
+
 	if err := os.Rename(tmpPath, path); err != nil {
 		os.Remove(tmpPath)
 		return nil, false, err
