@@ -1,0 +1,3 @@
+## 2024-04-29 - Cache Large Map Allocations at Instance Level
+**Learning:** Returning a large `map[string]string` from a function like `colors.ColorMap()` on every plugin invocation creates significant repeated memory allocation overhead, particularly in parallel rendering operations like `StatusLine.Render()` which executes 5-10 times.
+**Action:** Always cache large reference types (like maps) at the struct instance level (e.g. within `StatusLine`) during initialization to avoid redundant allocations in hot loops. Add fallback initialization `if sl.colorMap == nil` for backward compatibility with manual struct initialization in tests.

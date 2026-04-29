@@ -35,6 +35,7 @@ type StatusLine struct {
 	isIdle          bool
 	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
 	bashPluginsOnce sync.Once
+	colorMap        map[string]string // Cached color map to avoid allocations
 }
 
 // New creates a new StatusLine renderer
@@ -45,6 +46,7 @@ func New(input Input, cfg config.Config) *StatusLine {
 		pluginManager: plugin.NewManager(),
 		nativePlugins: plugins.NewRegistry(),
 		isIdle:        checkIsIdle(input.SessionID),
+		colorMap:      colors.ColorMap(),
 	}
 }
 
@@ -612,6 +614,11 @@ func (sl *StatusLine) getConfigBool(key string, defVal bool) bool {
 }
 
 func (sl *StatusLine) runPlugin(name string) string {
+	// Initialize colorMap if nil (for tests that construct StatusLine manually)
+	if sl.colorMap == nil {
+		sl.colorMap = colors.ColorMap()
+	}
+
 	// Build plugin input
 	input := plugin.Input{
 		Prism: plugin.PrismContext{
@@ -634,7 +641,7 @@ func (sl *StatusLine) runPlugin(name string) string {
 			ContextWindowSize:   sl.input.Context.ContextWindow,
 		},
 		Config: sl.getPluginConfig(name),
-		Colors: colors.ColorMap(),
+		Colors: sl.colorMap,
 	}
 
 	// Try native plugin first (much faster - no subprocess)
