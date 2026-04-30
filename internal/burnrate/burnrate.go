@@ -64,10 +64,28 @@ func LoadOrCreateSnapshotAt(sessionID string, currentCost float64, now time.Time
 		return nil, false, err
 	}
 
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+	// Use os.CreateTemp to avoid symlink vulnerability with predictable names
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), "prism-burn-*.tmp")
+	if err != nil {
 		return nil, false, err
 	}
+	tmpPath := tmpFile.Name()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return nil, false, err
+	}
+	// explicit close is important especially on Windows before rename
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return nil, false, err
+	}
+	if err := os.Chmod(tmpPath, 0644); err != nil {
+		os.Remove(tmpPath)
+		return nil, false, err
+	}
+
 	if err := os.Rename(tmpPath, path); err != nil {
 		os.Remove(tmpPath)
 		return nil, false, err

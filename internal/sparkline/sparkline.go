@@ -138,10 +138,31 @@ func Save(sessionID, metric string, b *Buffer) {
 	if err != nil {
 		return
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+
+	// Use os.CreateTemp to avoid symlink vulnerability with predictable names
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), "prism-spark-*.tmp")
+	if err != nil {
 		return
 	}
+	tmp := tmpFile.Name()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmp)
+		return
+	}
+
+	// explicit close is important especially on Windows before rename
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmp)
+		return
+	}
+
+	if err := os.Chmod(tmp, 0644); err != nil {
+		os.Remove(tmp)
+		return
+	}
+
 	os.Rename(tmp, path)
 }
 

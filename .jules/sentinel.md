@@ -1,0 +1,7 @@
+## 2025-02-18 - Fix Predictable Temporary File Symlink Vulnerability
+
+**Vulnerability:** The code previously used string concatenation (e.g., `path + ".tmp"`) with `os.WriteFile` and `os.Rename` for atomic file writes in shared directories like `os.TempDir()`. This pattern is vulnerable to symlink attacks, where an attacker could pre-create a symlink with the predictable name pointing to an arbitrary file they want to overwrite.
+
+**Learning:** Predictable temporary file names in shared directories (like `/tmp`) are inherently insecure for atomic writes. Even if the content being written isn't malicious, the *location* being written to can be controlled via symlinks, leading to arbitrary file overwrite or corruption issues. Furthermore, creating a file with `os.CreateTemp` ensures the OS opens it with `O_EXCL`, preventing any prior symlink from being followed. Finally, on Windows, file handles must be explicitly closed before the `os.Rename` step, or it will fail.
+
+**Prevention:** For atomic writes in shared directories, *always* use `os.CreateTemp` with an unpredictable pattern (like `prism-*.tmp`). Ensure the temporary file is created in the same directory as the target file (using `filepath.Dir()`) to avoid cross-device rename errors. Explicitly `Chmod` to match required permissions, handle the error gracefully by closing and removing the temporary file, and explicitly close the file descriptor before calling `os.Rename`.
