@@ -138,10 +138,30 @@ func Save(sessionID, metric string, b *Buffer) {
 	if err != nil {
 		return
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+
+	f, err := os.CreateTemp(filepath.Dir(path), "prism-spark-tmp-*")
+	if err != nil {
 		return
 	}
+	tmp := f.Name()
+
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		os.Remove(tmp)
+		return
+	}
+
+	if err := f.Chmod(0644); err != nil {
+		f.Close()
+		os.Remove(tmp)
+		return
+	}
+
+	if err := f.Close(); err != nil {
+		os.Remove(tmp)
+		return
+	}
+
 	os.Rename(tmp, path)
 }
 
