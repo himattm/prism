@@ -1,0 +1,3 @@
+## 2026-05-02 - Cache Reference Types During Parallel Plugin Execution
+**Learning:** In performance-sensitive areas with parallel execution like `statusline.go`'s `runPlugin`, dynamically calling `colors.ColorMap()` allocates a new, relatively large map for every plugin invocation. Repeatedly allocating maps inside hot loops or goroutines creates unnecessary memory churn and GC pressure.
+**Action:** Always cache static or read-only maps at the instance level (e.g., using `sync.Once` inside the struct) so they are only allocated once per rendering cycle, rather than re-creating them inside functions that execute concurrently across multiple routines.

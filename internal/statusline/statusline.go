@@ -35,6 +35,8 @@ type StatusLine struct {
 	isIdle          bool
 	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
 	bashPluginsOnce sync.Once
+	colorMap        map[string]string // Cached color map
+	colorMapOnce    sync.Once
 }
 
 // New creates a new StatusLine renderer
@@ -634,7 +636,7 @@ func (sl *StatusLine) runPlugin(name string) string {
 			ContextWindowSize:   sl.input.Context.ContextWindow,
 		},
 		Config: sl.getPluginConfig(name),
-		Colors: colors.ColorMap(),
+		Colors: sl.getColorMap(),
 	}
 
 	// Try native plugin first (much faster - no subprocess)
@@ -706,4 +708,12 @@ func (sl *StatusLine) getPluginConfig(name string) map[string]any {
 	// Load from plugin's own config.json, then overlay prism.json overrides
 	pluginCfg := sl.config.LoadPluginConfig(name)
 	return map[string]any{name: pluginCfg}
+}
+
+// getColorMap returns the color map, creating it once if needed
+func (sl *StatusLine) getColorMap() map[string]string {
+	sl.colorMapOnce.Do(func() {
+		sl.colorMap = colors.ColorMap()
+	})
+	return sl.colorMap
 }
