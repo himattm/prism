@@ -1,0 +1,3 @@
+## 2024-05-24 - Cache static maps at struct level to avoid allocation in performance-sensitive areas
+**Learning:** In performance-sensitive areas (like color mapping for the status line where multiple sections run in parallel), avoid repeated map allocations per plugin execution. Generating the color map per execution causes unnecessary GC pressure. Global variables carry risk of shared mutable state and require expensive deep copying.
+**Action:** Cache static data maps at the instance level (e.g., in the `StatusLine` struct) using `sync.Once` during initialization (e.g. within an accessor method) to ensure thread-safety, prevent nil map panics, minimize allocations, and preserve backward compatibility with struct literals.
