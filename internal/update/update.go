@@ -68,7 +68,6 @@ func Download(ctx context.Context) error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 	binaryPath := filepath.Join(homeDir, ".claude", "prism")
-	tempPath := binaryPath + ".new"
 
 	// Download to temp file
 	req, err := http.NewRequestWithContext(ctx, "GET", binaryURL, nil)
@@ -91,10 +90,11 @@ func Download(ctx context.Context) error {
 	}
 
 	// Write to temp file
-	out, err := os.Create(tempPath)
+	out, err := os.CreateTemp(filepath.Dir(binaryPath), filepath.Base(binaryPath)+".*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
+	tempPath := out.Name()
 
 	_, err = io.Copy(out, resp.Body)
 	out.Close()
