@@ -35,6 +35,16 @@ type StatusLine struct {
 	isIdle          bool
 	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
 	bashPluginsOnce sync.Once
+	colorsMap       map[string]string
+	colorsMapOnce   sync.Once
+}
+
+// getColorsMap returns the cached colors map, initializing it safely if needed.
+func (sl *StatusLine) getColorsMap() map[string]string {
+	sl.colorsMapOnce.Do(func() {
+		sl.colorsMap = colors.ColorMap()
+	})
+	return sl.colorsMap
 }
 
 // New creates a new StatusLine renderer
@@ -634,7 +644,7 @@ func (sl *StatusLine) runPlugin(name string) string {
 			ContextWindowSize:   sl.input.Context.ContextWindow,
 		},
 		Config: sl.getPluginConfig(name),
-		Colors: colors.ColorMap(),
+		Colors: sl.getColorsMap(),
 	}
 
 	// Try native plugin first (much faster - no subprocess)
