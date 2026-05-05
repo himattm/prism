@@ -1,0 +1,4 @@
+## 2025-01-20 - Predictable Temporary Filenames Vulnerability
+**Vulnerability:** Found predictable temporary filenames being used during atomic file writes (`path + ".tmp"`) in `os.TempDir()` within `internal/burnrate/burnrate.go` and `internal/sparkline/sparkline.go`.
+**Learning:** Atomic file writes often use a predictable `.tmp` suffix to create a temporary file before renaming. In shared directories like `os.TempDir()`, this predictable naming allows attackers to pre-create the file as a symlink, tricking the application into overwriting unintended files (Symlink attack).
+**Prevention:** Always use `os.CreateTemp` with an unpredictable pattern (e.g., `filepath.Base(path)+"-*"`) for temporary files. Ensure the file is created in the same directory as the target (`filepath.Dir(path)`), explicitly set permissions with `f.Chmod` if needed, and call `f.Close()` before renaming to prevent cross-platform issues.
