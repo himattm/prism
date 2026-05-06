@@ -1,0 +1,4 @@
+## 2025-05-06 - Prevent Symlink Attacks in Shared Temp Directories
+**Vulnerability:** Predictable temporary file names (e.g., `path + ".tmp"`) were used in world-writable directories (`os.TempDir()`) during atomic file writes, allowing malicious actors to create symlinks and overwrite arbitrary files.
+**Learning:** `os.WriteFile` follows symlinks. When performing atomic writes via rename in shared directories, a hardcoded `.tmp` suffix creates a predictable target for local privilege escalation or data corruption.
+**Prevention:** Always use `os.CreateTemp` to generate unpredictable temporary filenames, followed by `f.Chmod(perm)` and `f.Close()` before renaming to the final path.
