@@ -182,7 +182,7 @@ func saveUpdateCache(c updateCache) {
 	if err != nil {
 		return
 	}
-	os.WriteFile(path, data, 0644)
+	secureWriteFile(path, data, 0644)
 }
 
 // compareVersions compares two semver strings
@@ -293,7 +293,7 @@ func (p *UpdatePlugin) handleAutoInstall(hookCtx HookContext) (string, error) {
 	}
 
 	// Create lock file
-	if err := os.WriteFile(lockFile, []byte(fmt.Sprintf("%d", os.Getpid())), 0644); err != nil {
+	if err := secureWriteFile(lockFile, []byte(fmt.Sprintf("%d", os.Getpid())), 0644); err != nil {
 		return "", nil
 	}
 
@@ -357,7 +357,7 @@ func (p *UpdatePlugin) handleUpdateNotification() (string, error) {
 	}
 
 	// Mark as prompted
-	os.WriteFile(promptedFile, []byte{}, 0644)
+	secureWriteFile(promptedFile, []byte{}, 0644)
 
 	// Return notification message (ANSI colors for terminal)
 	cyan := "\033[36m"

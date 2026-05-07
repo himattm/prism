@@ -35,6 +35,8 @@ type StatusLine struct {
 	isIdle          bool
 	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
 	bashPluginsOnce sync.Once
+	colorMap        map[string]string
+	colorMapOnce    sync.Once
 }
 
 // New creates a new StatusLine renderer
@@ -611,6 +613,13 @@ func (sl *StatusLine) getConfigBool(key string, defVal bool) bool {
 	return v
 }
 
+func (sl *StatusLine) getColorMap() map[string]string {
+	sl.colorMapOnce.Do(func() {
+		sl.colorMap = colors.ColorMap()
+	})
+	return sl.colorMap
+}
+
 func (sl *StatusLine) runPlugin(name string) string {
 	// Build plugin input
 	input := plugin.Input{
@@ -634,7 +643,7 @@ func (sl *StatusLine) runPlugin(name string) string {
 			ContextWindowSize:   sl.input.Context.ContextWindow,
 		},
 		Config: sl.getPluginConfig(name),
-		Colors: colors.ColorMap(),
+		Colors: sl.getColorMap(),
 	}
 
 	// Try native plugin first (much faster - no subprocess)

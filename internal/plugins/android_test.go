@@ -147,6 +147,15 @@ emulator-5562	offline
 `,
 			expected: []string{"emulator-5560"},
 		},
+		{
+			name: "invalid serial dropped",
+			input: `List of devices attached
+emulator-5560	device
+1234;rm-rf/	device
+valid:serial/1.2-3	device
+`,
+			expected: []string{"emulator-5560", "valid:serial/1.2-3"},
+		},
 	}
 
 	for _, tt := range tests {

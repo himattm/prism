@@ -138,11 +138,33 @@ func Save(sessionID, metric string, b *Buffer) {
 	if err != nil {
 		return
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return
 	}
-	os.Rename(tmp, path)
+	tmpPath := tmpFile.Name()
+
+	if err := tmpFile.Chmod(0644); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return
+	}
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return
+	}
 }
 
 // PushAndSave is a convenience that loads, pushes, saves, and returns the buffer
