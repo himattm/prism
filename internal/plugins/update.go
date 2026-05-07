@@ -182,7 +182,35 @@ func saveUpdateCache(c updateCache) {
 	if err != nil {
 		return
 	}
-	os.WriteFile(path, data, 0644)
+
+	// Create a temporary file with an unpredictable name to prevent symlink attacks
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), "prism-update-cache-tmp-*")
+	if err != nil {
+		return
+	}
+
+	tmpPath := tmpFile.Name()
+
+	// Write data
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return
+	}
+
+	// Ensure permissions match original os.WriteFile behavior
+	if err := tmpFile.Chmod(0644); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return
+	}
+
+	tmpFile.Close()
+
+	// Atomic replace
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+	}
 }
 
 // compareVersions compares two semver strings
