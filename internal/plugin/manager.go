@@ -18,6 +18,15 @@ import (
 	"time"
 )
 
+// sanitizePluginName removes path separators and prevents directory traversal
+func sanitizePluginName(name string) string {
+	name = filepath.Base(filepath.Clean("/" + name))
+	if name == "/" || name == "." || name == ".." {
+		return "unknown"
+	}
+	return name
+}
+
 // Manager handles plugin discovery, execution, and management
 type Manager struct {
 	pluginDir string
@@ -153,7 +162,7 @@ func ParseMetadata(path string) (Metadata, error) {
 
 			switch key {
 			case "name":
-				meta.Name = value
+				meta.Name = sanitizePluginName(value)
 			case "version":
 				meta.Version = value
 			case "description":
@@ -432,8 +441,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	// Parse metadata
 	meta, _ := ParseMetadata(tmpPath)
-	if meta.Name == "" {
-		meta.Name = pluginName
+	if meta.Name == "" || meta.Name == "unknown" {
+		meta.Name = sanitizePluginName(pluginName)
 	}
 
 	// Install
@@ -481,6 +490,7 @@ func (m *Manager) addFromDirectURL(url string) error {
 	base := filepath.Base(url)
 	pluginName := strings.TrimPrefix(base, "prism-plugin-")
 	pluginName = strings.TrimSuffix(pluginName, ".sh")
+	pluginName = sanitizePluginName(pluginName)
 	// Remove platform suffix if present
 	for _, suffix := range []string{"-darwin-arm64", "-darwin-amd64", "-linux-amd64", "-linux-arm64"} {
 		pluginName = strings.TrimSuffix(pluginName, suffix)
@@ -783,6 +793,8 @@ func (m *Manager) updateScriptPlugin(p Plugin, client *http.Client) error {
 
 // Remove uninstalls a plugin (handles both binaries and scripts)
 func (m *Manager) Remove(name string) error {
+	name = sanitizePluginName(name)
+
 	// Try binary first, then script
 	binaryPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", name))
 	scriptPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", name))
