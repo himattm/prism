@@ -275,7 +275,7 @@ func (m *Manager) Add(url string) error {
 		parts := strings.Split(strings.TrimPrefix(url, "https://github.com/"), "/")
 		if len(parts) >= 2 {
 			owner, repo := parts[0], parts[1]
-			pluginName := strings.TrimPrefix(repo, "prism-plugin-")
+			pluginName := filepath.Base(filepath.Clean("/" + strings.TrimPrefix(repo, "prism-plugin-")))
 
 			// Try binary release first
 			if err := m.addBinaryPlugin(owner, repo, pluginName); err == nil {
@@ -434,6 +434,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 	meta, _ := ParseMetadata(tmpPath)
 	if meta.Name == "" {
 		meta.Name = pluginName
+	} else {
+		meta.Name = filepath.Base(filepath.Clean("/" + meta.Name))
 	}
 
 	// Install
@@ -485,6 +487,7 @@ func (m *Manager) addFromDirectURL(url string) error {
 	for _, suffix := range []string{"-darwin-arm64", "-darwin-amd64", "-linux-amd64", "-linux-arm64"} {
 		pluginName = strings.TrimSuffix(pluginName, suffix)
 	}
+	pluginName = filepath.Base(filepath.Clean("/" + pluginName))
 
 	if err := os.MkdirAll(m.pluginDir, 0755); err != nil {
 		return err
