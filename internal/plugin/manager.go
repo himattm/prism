@@ -31,6 +31,12 @@ func NewManager() *Manager {
 	}
 }
 
+// sanitizePluginName ensures the given name cannot escape the target directory
+// by stripping path components.
+func sanitizePluginName(name string) string {
+	return filepath.Base(filepath.Clean("/" + name))
+}
+
 // Discover finds all installed plugins (both scripts and binaries)
 func (m *Manager) Discover() ([]Plugin, error) {
 	if err := os.MkdirAll(m.pluginDir, 0755); err != nil {
@@ -365,7 +371,7 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 		return err
 	}
 
-	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", pluginName))
+	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", sanitizePluginName(pluginName)))
 
 	// Check if already installed
 	if err := m.checkExistingPlugin(destPath, pluginName); err != nil {
@@ -441,7 +447,7 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 		return err
 	}
 
-	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", meta.Name))
+	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", sanitizePluginName(meta.Name)))
 
 	if err := m.checkExistingPlugin(destPath, meta.Name); err != nil {
 		return err
@@ -492,9 +498,9 @@ func (m *Manager) addFromDirectURL(url string) error {
 
 	var destPath string
 	if isScript {
-		destPath = filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", pluginName))
+		destPath = filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", sanitizePluginName(pluginName)))
 	} else {
-		destPath = filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", pluginName))
+		destPath = filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", sanitizePluginName(pluginName)))
 	}
 
 	if err := m.checkExistingPlugin(destPath, pluginName); err != nil {
@@ -784,8 +790,8 @@ func (m *Manager) updateScriptPlugin(p Plugin, client *http.Client) error {
 // Remove uninstalls a plugin (handles both binaries and scripts)
 func (m *Manager) Remove(name string) error {
 	// Try binary first, then script
-	binaryPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", name))
-	scriptPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", name))
+	binaryPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", sanitizePluginName(name)))
+	scriptPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", sanitizePluginName(name)))
 
 	var path string
 	if _, err := os.Stat(binaryPath); err == nil {
