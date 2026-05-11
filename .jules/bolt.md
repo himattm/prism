@@ -1,0 +1,3 @@
+## 2025-02-15 - Caching dynamically loaded configurations
+**Learning:** To optimize hot paths like concurrent plugin execution, it is critical to cache dynamically loaded files (e.g., JSON configurations) in memory at the instance level using thread-safe mechanisms like `sync.RWMutex`. This avoids the expensive repeated overhead of disk I/O (`os.ReadFile`) and parsing (`json.Unmarshal`).
+**Action:** When modifying structs to cache reference types, use `sync.Once` (e.g., `sl.once.Do(...)`) instead of a simple `nil` check if the accessor can be called concurrently by multiple goroutines. This prevents nil map panics, ensures thread safety, and maintains backward compatibility for test suites.
