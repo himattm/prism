@@ -441,9 +441,10 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 		return err
 	}
 
-	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", meta.Name))
+	safeName := filepath.Base(filepath.Clean("/" + meta.Name))
+	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", safeName))
 
-	if err := m.checkExistingPlugin(destPath, meta.Name); err != nil {
+	if err := m.checkExistingPlugin(destPath, safeName); err != nil {
 		return err
 	}
 
