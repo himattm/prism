@@ -28,15 +28,18 @@ var statusCache = cache.New()
 
 // StatusLine handles rendering the status line
 type StatusLine struct {
-	input           Input
-	config          config.Config
-	pluginManager   *plugin.Manager
-	nativePlugins   *plugins.Registry
-	isIdle          bool
-	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
-	bashPluginsOnce sync.Once
-	colorMap        map[string]string
-	colorMapOnce    sync.Once
+	input             Input
+	config            config.Config
+	pluginManager     *plugin.Manager
+	nativePlugins     *plugins.Registry
+	isIdle            bool
+	bashPlugins       []plugin.Plugin // Cached discovered bash plugins
+	bashPluginsOnce   sync.Once
+	colorMap          map[string]string
+	colorMapOnce      sync.Once
+	pluginConfigs     map[string]map[string]any
+	pluginConfigsLock sync.RWMutex
+	pluginConfigsOnce sync.Once
 }
 
 // New creates a new StatusLine renderer
@@ -712,7 +715,27 @@ func (sl *StatusLine) calculateContextPct() int {
 }
 
 func (sl *StatusLine) getPluginConfig(name string) map[string]any {
+	sl.pluginConfigsOnce.Do(func() {
+		sl.pluginConfigsLock.Lock()
+		defer sl.pluginConfigsLock.Unlock()
+		if sl.pluginConfigs == nil {
+			sl.pluginConfigs = make(map[string]map[string]any)
+		}
+	})
+
+	sl.pluginConfigsLock.RLock()
+	if cached, ok := sl.pluginConfigs[name]; ok {
+		sl.pluginConfigsLock.RUnlock()
+		return map[string]any{name: cached}
+	}
+	sl.pluginConfigsLock.RUnlock()
+
 	// Load from plugin's own config.json, then overlay prism.json overrides
 	pluginCfg := sl.config.LoadPluginConfig(name)
+
+	sl.pluginConfigsLock.Lock()
+	defer sl.pluginConfigsLock.Unlock()
+	sl.pluginConfigs[name] = pluginCfg
+
 	return map[string]any{name: pluginCfg}
 }
