@@ -370,7 +370,8 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 		return err
 	}
 
-	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", sanitizeFilename(pluginName)))
+	pluginName = sanitizeFilename(pluginName)
+	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", pluginName))
 
 	// Check if already installed
 	if err := m.checkExistingPlugin(destPath, pluginName); err != nil {
@@ -446,7 +447,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 		return err
 	}
 
-	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", sanitizeFilename(meta.Name)))
+	meta.Name = sanitizeFilename(meta.Name)
+	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", meta.Name))
 
 	if err := m.checkExistingPlugin(destPath, meta.Name); err != nil {
 		return err
@@ -495,11 +497,12 @@ func (m *Manager) addFromDirectURL(url string) error {
 		return err
 	}
 
+	pluginName = sanitizeFilename(pluginName)
 	var destPath string
 	if isScript {
-		destPath = filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", sanitizeFilename(pluginName)))
+		destPath = filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", pluginName))
 	} else {
-		destPath = filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", sanitizeFilename(pluginName)))
+		destPath = filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", pluginName))
 	}
 
 	if err := m.checkExistingPlugin(destPath, pluginName); err != nil {
