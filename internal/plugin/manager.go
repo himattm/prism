@@ -18,6 +18,11 @@ import (
 	"time"
 )
 
+// sanitizeFilename ensures a filename cannot be used for path traversal
+func sanitizeFilename(name string) string {
+	return filepath.Base(filepath.Clean("/" + name))
+}
+
 // Manager handles plugin discovery, execution, and management
 type Manager struct {
 	pluginDir string
@@ -58,7 +63,7 @@ func (m *Manager) Discover() ([]Plugin, error) {
 			continue
 		}
 
-		path := filepath.Join(m.pluginDir, name)
+		path := filepath.Join(m.pluginDir, name) // name from os.ReadDir is already a safe basename
 		isBinary := !strings.HasSuffix(name, ".sh")
 
 		var meta Metadata
@@ -365,6 +370,7 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 		return err
 	}
 
+	pluginName = sanitizeFilename(pluginName)
 	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", pluginName))
 
 	// Check if already installed
@@ -441,6 +447,7 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 		return err
 	}
 
+	meta.Name = sanitizeFilename(meta.Name)
 	destPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", meta.Name))
 
 	if err := m.checkExistingPlugin(destPath, meta.Name); err != nil {
@@ -490,6 +497,7 @@ func (m *Manager) addFromDirectURL(url string) error {
 		return err
 	}
 
+	pluginName = sanitizeFilename(pluginName)
 	var destPath string
 	if isScript {
 		destPath = filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", pluginName))
@@ -783,9 +791,10 @@ func (m *Manager) updateScriptPlugin(p Plugin, client *http.Client) error {
 
 // Remove uninstalls a plugin (handles both binaries and scripts)
 func (m *Manager) Remove(name string) error {
+	safeName := sanitizeFilename(name)
 	// Try binary first, then script
-	binaryPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", name))
-	scriptPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", name))
+	binaryPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s", safeName))
+	scriptPath := filepath.Join(m.pluginDir, fmt.Sprintf("prism-plugin-%s.sh", safeName))
 
 	var path string
 	if _, err := os.Stat(binaryPath); err == nil {
