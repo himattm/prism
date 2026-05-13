@@ -28,15 +28,18 @@ var statusCache = cache.New()
 
 // StatusLine handles rendering the status line
 type StatusLine struct {
-	input           Input
-	config          config.Config
-	pluginManager   *plugin.Manager
-	nativePlugins   *plugins.Registry
-	isIdle          bool
-	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
-	bashPluginsOnce sync.Once
-	colorMap        map[string]string
-	colorMapOnce    sync.Once
+	input             Input
+	config            config.Config
+	pluginManager     *plugin.Manager
+	nativePlugins     *plugins.Registry
+	isIdle            bool
+	bashPlugins       []plugin.Plugin // Cached discovered bash plugins
+	bashPluginsOnce   sync.Once
+	colorMap          map[string]string
+	colorMapOnce      sync.Once
+	pluginConfigs     map[string]map[string]any
+	pluginConfigsMu   sync.RWMutex
+	pluginConfigsInit sync.Once
 }
 
 // New creates a new StatusLine renderer
@@ -712,7 +715,38 @@ func (sl *StatusLine) calculateContextPct() int {
 }
 
 func (sl *StatusLine) getPluginConfig(name string) map[string]any {
+	// ⚡ Bolt: Cache parsed plugin configurations in memory at the instance level.
+	// This optimization avoids expensive, repeated disk I/O and JSON parsing
+	// for each plugin executing concurrently in a hot rendering path.
+	sl.pluginConfigsInit.Do(func() {
+		sl.pluginConfigs = make(map[string]map[string]any)
+	})
+
+	sl.pluginConfigsMu.RLock()
+	if cached, ok := sl.pluginConfigs[name]; ok {
+		sl.pluginConfigsMu.RUnlock()
+		// ⚡ Bolt: Return a shallow copy of the cached map to prevent downstream
+		// mutations from altering shared state or causing data races.
+		copyMap := make(map[string]any)
+		for k, v := range cached {
+			copyMap[k] = v
+		}
+		return copyMap
+	}
+	sl.pluginConfigsMu.RUnlock()
+
 	// Load from plugin's own config.json, then overlay prism.json overrides
 	pluginCfg := sl.config.LoadPluginConfig(name)
-	return map[string]any{name: pluginCfg}
+	result := map[string]any{name: pluginCfg}
+
+	sl.pluginConfigsMu.Lock()
+	sl.pluginConfigs[name] = result
+	sl.pluginConfigsMu.Unlock()
+
+	// ⚡ Bolt: Return a shallow copy here as well for safety.
+	copyMap := make(map[string]any)
+	for k, v := range result {
+		copyMap[k] = v
+	}
+	return copyMap
 }
