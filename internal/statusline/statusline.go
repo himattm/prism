@@ -28,15 +28,18 @@ var statusCache = cache.New()
 
 // StatusLine handles rendering the status line
 type StatusLine struct {
-	input           Input
-	config          config.Config
-	pluginManager   *plugin.Manager
-	nativePlugins   *plugins.Registry
-	isIdle          bool
-	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
-	bashPluginsOnce sync.Once
-	colorMap        map[string]string
-	colorMapOnce    sync.Once
+	input             Input
+	config            config.Config
+	pluginManager     *plugin.Manager
+	nativePlugins     *plugins.Registry
+	isIdle            bool
+	bashPlugins       []plugin.Plugin // Cached discovered bash plugins
+	bashPluginsOnce   sync.Once
+	colorMap          map[string]string
+	colorMapOnce      sync.Once
+	pluginConfigCache map[string]map[string]any
+	pluginConfigMu    sync.RWMutex
+	pluginConfigOnce  sync.Once
 }
 
 // New creates a new StatusLine renderer
@@ -712,7 +715,44 @@ func (sl *StatusLine) calculateContextPct() int {
 }
 
 func (sl *StatusLine) getPluginConfig(name string) map[string]any {
+	sl.pluginConfigOnce.Do(func() {
+		sl.pluginConfigCache = make(map[string]map[string]any)
+	})
+
+	sl.pluginConfigMu.RLock()
+	if cached, ok := sl.pluginConfigCache[name]; ok {
+		sl.pluginConfigMu.RUnlock()
+
+		// Return shallow copy
+		result := make(map[string]any)
+		for k, v := range cached {
+			result[k] = v
+		}
+		return map[string]any{name: result}
+	}
+	sl.pluginConfigMu.RUnlock()
+
+	sl.pluginConfigMu.Lock()
+	defer sl.pluginConfigMu.Unlock()
+
+	// Double check pattern
+	if cached, ok := sl.pluginConfigCache[name]; ok {
+		// Return shallow copy
+		result := make(map[string]any)
+		for k, v := range cached {
+			result[k] = v
+		}
+		return map[string]any{name: result}
+	}
+
 	// Load from plugin's own config.json, then overlay prism.json overrides
 	pluginCfg := sl.config.LoadPluginConfig(name)
-	return map[string]any{name: pluginCfg}
+	sl.pluginConfigCache[name] = pluginCfg
+
+	// Return shallow copy
+	result := make(map[string]any)
+	for k, v := range pluginCfg {
+		result[k] = v
+	}
+	return map[string]any{name: result}
 }
