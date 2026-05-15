@@ -37,6 +37,8 @@ type StatusLine struct {
 	bashPluginsOnce sync.Once
 	colorMap        map[string]string
 	colorMapOnce    sync.Once
+	pluginConfigs   map[string]map[string]any
+	pluginCfgMu     sync.RWMutex
 }
 
 // New creates a new StatusLine renderer
@@ -712,7 +714,35 @@ func (sl *StatusLine) calculateContextPct() int {
 }
 
 func (sl *StatusLine) getPluginConfig(name string) map[string]any {
-	// Load from plugin's own config.json, then overlay prism.json overrides
+	sl.pluginCfgMu.RLock()
+	if sl.pluginConfigs != nil {
+		if cfg, ok := sl.pluginConfigs[name]; ok {
+			sl.pluginCfgMu.RUnlock()
+			return cloneConfigMap(cfg)
+		}
+	}
+	sl.pluginCfgMu.RUnlock()
+
+	sl.pluginCfgMu.Lock()
+	defer sl.pluginCfgMu.Unlock()
+
+	if sl.pluginConfigs == nil {
+		sl.pluginConfigs = make(map[string]map[string]any)
+	} else if cfg, ok := sl.pluginConfigs[name]; ok {
+		return cloneConfigMap(cfg)
+	}
+
 	pluginCfg := sl.config.LoadPluginConfig(name)
-	return map[string]any{name: pluginCfg}
+	cfg := map[string]any{name: pluginCfg}
+	sl.pluginConfigs[name] = cfg
+
+	return cloneConfigMap(cfg)
+}
+
+func cloneConfigMap(m map[string]any) map[string]any {
+	cloned := make(map[string]any, len(m))
+	for k, v := range m {
+		cloned[k] = v
+	}
+	return cloned
 }

@@ -1,0 +1,3 @@
+## 2024-05-15 - Cache Plugin Configurations to Avoid Disk I/O Bottleneck
+**Learning:** In a highly concurrent environment where plugins run in parallel (like StatusLine rendering in Prism), repeatedly loading configuration files from disk via `os.ReadFile` and parsing them with `json.Unmarshal` for every single plugin execution on every render tick creates a massive performance bottleneck due to disk I/O and CPU overhead.
+**Action:** Use a thread-safe map protected by a `sync.RWMutex` with the double-checked locking pattern to cache the results of parsing configuration files. Always return a shallow copy of reference types like maps to prevent concurrent mutation errors.
