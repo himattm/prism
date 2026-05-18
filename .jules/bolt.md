@@ -1,0 +1,3 @@
+## 2024-05-18 - Instance-Level Caching for Plugin Configs
+**Learning:** The statusline executes multiple plugins concurrently in goroutines. Each plugin was causing disk I/O and JSON parsing overhead by re-reading `config.json` via `getPluginConfig` -> `LoadPluginConfig`.
+**Action:** Implement instance-level caching in the `StatusLine` struct using double-checked locking (`sync.RWMutex`) and `sync.Once` for map initialization to safely cache parsed JSON configurations and prevent redundant disk reads in hot paths. Return shallow copies of cached maps to prevent race conditions from downstream mutations.

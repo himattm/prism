@@ -28,15 +28,18 @@ var statusCache = cache.New()
 
 // StatusLine handles rendering the status line
 type StatusLine struct {
-	input           Input
-	config          config.Config
-	pluginManager   *plugin.Manager
-	nativePlugins   *plugins.Registry
-	isIdle          bool
-	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
-	bashPluginsOnce sync.Once
-	colorMap        map[string]string
-	colorMapOnce    sync.Once
+	input             Input
+	config            config.Config
+	pluginManager     *plugin.Manager
+	nativePlugins     *plugins.Registry
+	isIdle            bool
+	bashPlugins       []plugin.Plugin // Cached discovered bash plugins
+	bashPluginsOnce   sync.Once
+	colorMap          map[string]string
+	colorMapOnce      sync.Once
+	pluginConfigCache map[string]map[string]any
+	pluginConfigMu    sync.RWMutex
+	pluginConfigOnce  sync.Once
 }
 
 // New creates a new StatusLine renderer
@@ -712,7 +715,30 @@ func (sl *StatusLine) calculateContextPct() int {
 }
 
 func (sl *StatusLine) getPluginConfig(name string) map[string]any {
-	// Load from plugin's own config.json, then overlay prism.json overrides
-	pluginCfg := sl.config.LoadPluginConfig(name)
-	return map[string]any{name: pluginCfg}
+	sl.pluginConfigOnce.Do(func() {
+		sl.pluginConfigCache = make(map[string]map[string]any)
+	})
+
+	sl.pluginConfigMu.RLock()
+	cachedCfg, ok := sl.pluginConfigCache[name]
+	sl.pluginConfigMu.RUnlock()
+
+	if !ok {
+		sl.pluginConfigMu.Lock()
+		// Double check
+		cachedCfg, ok = sl.pluginConfigCache[name]
+		if !ok {
+			pluginCfg := sl.config.LoadPluginConfig(name)
+			cachedCfg = map[string]any{name: pluginCfg}
+			sl.pluginConfigCache[name] = cachedCfg
+		}
+		sl.pluginConfigMu.Unlock()
+	}
+
+	// Return a shallow copy of the cached reference type
+	result := make(map[string]any, len(cachedCfg))
+	for k, v := range cachedCfg {
+		result[k] = v
+	}
+	return result
 }
