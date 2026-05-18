@@ -90,7 +90,27 @@ func (m *Manager) HandleIdle(input Input, rawInput []byte) error {
 	// 1. Create idle marker file
 	if input.SessionID != "" {
 		idleFile := IdleFilePath(input.SessionID)
-		if err := os.WriteFile(idleFile, []byte{}, 0644); err != nil {
+		tmpFile, err := os.CreateTemp(filepath.Dir(idleFile), filepath.Base(idleFile)+".*")
+		if err != nil {
+			return err
+		}
+		tmpPath := tmpFile.Name()
+		if err := tmpFile.Chmod(0644); err != nil {
+			tmpFile.Close()
+			os.Remove(tmpPath)
+			return err
+		}
+		if _, err := tmpFile.Write([]byte{}); err != nil {
+			tmpFile.Close()
+			os.Remove(tmpPath)
+			return err
+		}
+		if err := tmpFile.Close(); err != nil {
+			os.Remove(tmpPath)
+			return err
+		}
+		if err := os.Rename(tmpPath, idleFile); err != nil {
+			os.Remove(tmpPath)
 			return err
 		}
 	}
