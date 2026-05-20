@@ -100,11 +100,6 @@ func (m *Manager) HandleIdle(input Input, rawInput []byte) error {
 			os.Remove(tmpPath)
 			return err
 		}
-		if _, err := tmpFile.Write([]byte{}); err != nil {
-			tmpFile.Close()
-			os.Remove(tmpPath)
-			return err
-		}
 		if err := tmpFile.Close(); err != nil {
 			os.Remove(tmpPath)
 			return err

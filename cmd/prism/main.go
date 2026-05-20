@@ -233,13 +233,23 @@ func handleUpdate(autoMode bool) {
 	if autoMode {
 		markerFile := filepath.Join(os.TempDir(), "prism-auto-installed")
 		tmpFile, err := os.CreateTemp(filepath.Dir(markerFile), filepath.Base(markerFile)+".*")
-		if err == nil {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to create auto-update marker: %v\n", err)
+		} else {
 			tmpPath := tmpFile.Name()
-			tmpFile.Chmod(0644)
-			tmpFile.Write([]byte(info.LatestVersion))
-			tmpFile.Close()
-			if err := os.Rename(tmpPath, markerFile); err != nil {
+			writeErr := tmpFile.Chmod(0644)
+			if writeErr == nil {
+				_, writeErr = tmpFile.Write([]byte(info.LatestVersion))
+			}
+			if cerr := tmpFile.Close(); writeErr == nil {
+				writeErr = cerr
+			}
+			if writeErr == nil {
+				writeErr = os.Rename(tmpPath, markerFile)
+			}
+			if writeErr != nil {
 				os.Remove(tmpPath)
+				fmt.Fprintf(os.Stderr, "Warning: failed to write auto-update marker: %v\n", writeErr)
 			}
 		}
 	} else {
