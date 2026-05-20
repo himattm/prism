@@ -28,15 +28,18 @@ var statusCache = cache.New()
 
 // StatusLine handles rendering the status line
 type StatusLine struct {
-	input           Input
-	config          config.Config
-	pluginManager   *plugin.Manager
-	nativePlugins   *plugins.Registry
-	isIdle          bool
-	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
-	bashPluginsOnce sync.Once
-	colorMap        map[string]string
-	colorMapOnce    sync.Once
+	input             Input
+	config            config.Config
+	pluginManager     *plugin.Manager
+	nativePlugins     *plugins.Registry
+	isIdle            bool
+	bashPlugins       []plugin.Plugin // Cached discovered bash plugins
+	bashPluginsOnce   sync.Once
+	colorMap          map[string]string
+	colorMapOnce      sync.Once
+	pluginConfigCache map[string]map[string]any
+	pluginConfigMu    sync.RWMutex
+	pluginConfigOnce  sync.Once
 }
 
 // New creates a new StatusLine renderer
@@ -712,7 +715,59 @@ func (sl *StatusLine) calculateContextPct() int {
 }
 
 func (sl *StatusLine) getPluginConfig(name string) map[string]any {
+	sl.pluginConfigOnce.Do(func() {
+		sl.pluginConfigCache = make(map[string]map[string]any)
+	})
+
+	sl.pluginConfigMu.RLock()
+	cached, ok := sl.pluginConfigCache[name]
+	sl.pluginConfigMu.RUnlock()
+
+	if ok {
+		return deepCopyMap(cached)
+	}
+
 	// Load from plugin's own config.json, then overlay prism.json overrides
+	// Do this outside the lock to avoid blocking other plugins
 	pluginCfg := sl.config.LoadPluginConfig(name)
-	return map[string]any{name: pluginCfg}
+	result := map[string]any{name: pluginCfg}
+
+	sl.pluginConfigMu.Lock()
+	defer sl.pluginConfigMu.Unlock()
+
+	// Double-checked locking in case another goroutine just loaded it
+	if cached, ok := sl.pluginConfigCache[name]; ok {
+		return deepCopyMap(cached)
+	}
+
+	sl.pluginConfigCache[name] = result
+
+	return deepCopyMap(result)
+}
+
+func deepCopyMap(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	cp := make(map[string]any, len(m))
+	for k, v := range m {
+		cp[k] = deepCopyValue(v)
+	}
+	return cp
+}
+
+func deepCopyValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		return deepCopyMap(val)
+	case []any:
+		cp := make([]any, len(val))
+		for i, item := range val {
+			cp[i] = deepCopyValue(item)
+		}
+		return cp
+	default:
+		// Assume value types and string are safe to copy by assignment
+		return val
+	}
 }
