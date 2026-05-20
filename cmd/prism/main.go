@@ -232,7 +232,26 @@ func handleUpdate(autoMode bool) {
 	// Write marker file for auto-update tracking
 	if autoMode {
 		markerFile := filepath.Join(os.TempDir(), "prism-auto-installed")
-		os.WriteFile(markerFile, []byte(info.LatestVersion), 0644)
+		tmpFile, err := os.CreateTemp(filepath.Dir(markerFile), filepath.Base(markerFile)+".*")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to create auto-update marker: %v\n", err)
+		} else {
+			tmpPath := tmpFile.Name()
+			writeErr := tmpFile.Chmod(0644)
+			if writeErr == nil {
+				_, writeErr = tmpFile.Write([]byte(info.LatestVersion))
+			}
+			if cerr := tmpFile.Close(); writeErr == nil {
+				writeErr = cerr
+			}
+			if writeErr == nil {
+				writeErr = os.Rename(tmpPath, markerFile)
+			}
+			if writeErr != nil {
+				os.Remove(tmpPath)
+				fmt.Fprintf(os.Stderr, "Warning: failed to write auto-update marker: %v\n", writeErr)
+			}
+		}
 	} else {
 		fmt.Printf("\nUpdated to %s!\n", info.LatestVersion)
 		if hooksAdded > 0 {
