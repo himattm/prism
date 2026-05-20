@@ -28,15 +28,17 @@ var statusCache = cache.New()
 
 // StatusLine handles rendering the status line
 type StatusLine struct {
-	input           Input
-	config          config.Config
-	pluginManager   *plugin.Manager
-	nativePlugins   *plugins.Registry
-	isIdle          bool
-	bashPlugins     []plugin.Plugin // Cached discovered bash plugins
-	bashPluginsOnce sync.Once
-	colorMap        map[string]string
-	colorMapOnce    sync.Once
+	input             Input
+	config            config.Config
+	pluginManager     *plugin.Manager
+	nativePlugins     *plugins.Registry
+	isIdle            bool
+	bashPlugins       []plugin.Plugin // Cached discovered bash plugins
+	bashPluginsOnce   sync.Once
+	colorMap          map[string]string
+	colorMapOnce      sync.Once
+	pluginConfigCache map[string]map[string]any
+	pluginConfigMu    sync.RWMutex
 }
 
 // New creates a new StatusLine renderer
@@ -712,7 +714,65 @@ func (sl *StatusLine) calculateContextPct() int {
 }
 
 func (sl *StatusLine) getPluginConfig(name string) map[string]any {
+	// Performance optimization: Cache plugin configs to avoid expensive disk I/O on every run.
+	// Expected impact: Reduces disk reads and JSON parsing overhead per plugin execution,
+	// potentially saving several milliseconds during concurrent plugin loading.
+	sl.pluginConfigMu.RLock()
+	if sl.pluginConfigCache != nil {
+		if cached, ok := sl.pluginConfigCache[name]; ok {
+			sl.pluginConfigMu.RUnlock()
+			return map[string]any{name: deepCopyMap(cached)}
+		}
+	}
+	sl.pluginConfigMu.RUnlock()
+
 	// Load from plugin's own config.json, then overlay prism.json overrides
+	// Perform slow I/O operation outside the write lock to avoid bottlenecking other goroutines
 	pluginCfg := sl.config.LoadPluginConfig(name)
-	return map[string]any{name: pluginCfg}
+
+	sl.pluginConfigMu.Lock()
+	if sl.pluginConfigCache == nil {
+		sl.pluginConfigCache = make(map[string]map[string]any)
+	}
+	sl.pluginConfigCache[name] = pluginCfg
+	sl.pluginConfigMu.Unlock()
+
+	// Return a deep copy to prevent callers from mutating the cached struct
+	return map[string]any{name: deepCopyMap(pluginCfg)}
+}
+
+func deepCopyMap(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	res := make(map[string]any, len(m))
+	for k, v := range m {
+		switch vt := v.(type) {
+		case map[string]any:
+			res[k] = deepCopyMap(vt)
+		case []any:
+			res[k] = deepCopySlice(vt)
+		default:
+			res[k] = v
+		}
+	}
+	return res
+}
+
+func deepCopySlice(s []any) []any {
+	if s == nil {
+		return nil
+	}
+	res := make([]any, len(s))
+	for i, v := range s {
+		switch vt := v.(type) {
+		case map[string]any:
+			res[i] = deepCopyMap(vt)
+		case []any:
+			res[i] = deepCopySlice(vt)
+		default:
+			res[i] = v
+		}
+	}
+	return res
 }
