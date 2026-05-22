@@ -7,3 +7,7 @@
 **Vulnerability:** Predictable file names created in shared temporary directories (`os.TempDir()`) using `os.WriteFile` or `os.Create` are vulnerable to symlink attacks. A local attacker can create a symlink with the predictable name pointing to an arbitrary file, causing the application to overwrite it.
 **Learning:** Atomic writes using temporary files and renames protect against symlink attacks because `os.Rename` replaces the file (including symlinks) instead of following it.
 **Prevention:** Always use `os.CreateTemp` to create an unpredictable temporary file in the target directory, write to it, close it, and use `os.Rename` to atomically move it to the intended predictable path.
+
+## 2024-05-22 - Extracted Secure Write Helper
+**Learning:** Reusable secure patterns are essential for mitigating symlink attacks and race conditions across the codebase. `os.WriteFile` is vulnerable to these issues when writing predictable file names in shared directories.
+**Action:** Created `internal/fsutil.SecureWriteFile` to perform atomic writes using temporary files and renames, replacing direct `os.WriteFile` usage in `internal/plugin`, `internal/config`, and `internal/update`.

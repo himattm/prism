@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/himattm/prism/internal/fsutil"
+
 	"github.com/himattm/prism/internal/version"
 )
 
@@ -245,7 +247,7 @@ func Init(dir string) error {
 		return err
 	}
 
-	return os.WriteFile(configPath, data, 0644)
+	return fsutil.SecureWriteFile(configPath, data, 0644)
 }
 
 // InitGlobal creates a new global config file
@@ -271,5 +273,5 @@ func InitGlobal() error {
 		return err
 	}
 
-	return os.WriteFile(configPath, data, 0644)
+	return fsutil.SecureWriteFile(configPath, data, 0644)
 }

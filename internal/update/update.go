@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/himattm/prism/internal/fsutil"
+
 	"github.com/himattm/prism/internal/version"
 )
 
@@ -235,7 +237,7 @@ func MigrateSettings() (int, error) {
 		return 0, fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	if err := os.WriteFile(settingsPath, output, 0644); err != nil {
+	if err := fsutil.SecureWriteFile(settingsPath, output, 0644); err != nil {
 		return 0, fmt.Errorf("failed to write settings: %w", err)
 	}
 
