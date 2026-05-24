@@ -5,3 +5,7 @@
 ## 2025-05-09 - Prefer strings.HasPrefix for prefix checks
 **Learning:** Manual string slicing and length checks (`len(key) >= len(prefix) && key[:len(prefix)] == prefix`) are less readable than `strings.HasPrefix` and easier to get wrong (off-by-one on the bound check). Performance is equivalent.
 **Action:** Use `strings.HasPrefix` for prefix-based string checks; the bounds-check and slicing dance is not faster.
+
+## 2024-05-20 - Cache Regex Compilation to Reduce CPU Overhead
+**Learning:** Calling `regexp.MustCompile` inside frequently executed functions (like file parsing during discovery) forces the regex engine to parse and compile the pattern repeatedly, causing unnecessary CPU overhead and memory allocations.
+**Action:** Always declare `regexp.MustCompile` as package-level global variables so they are compiled exactly once at application startup.
