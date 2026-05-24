@@ -1,11 +1,11 @@
 package plugins
 
 import (
-	"github.com/himattm/prism/internal/fsutil"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/himattm/prism/internal/fsutil"
 	"net/http"
 	"os"
 	"os/exec"
