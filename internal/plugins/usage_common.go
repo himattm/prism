@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"github.com/himattm/prism/internal/fsutil"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -391,5 +392,5 @@ func saveUsageCache(u *UsageResponse) {
 	if err != nil {
 		return
 	}
-	secureWriteFile(path, data, 0644)
+	fsutil.SecureWriteFile(path, data, 0644)
 }
