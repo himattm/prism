@@ -5,3 +5,7 @@
 ## 2025-05-09 - Prefer strings.HasPrefix for prefix checks
 **Learning:** Manual string slicing and length checks (`len(key) >= len(prefix) && key[:len(prefix)] == prefix`) are less readable than `strings.HasPrefix` and easier to get wrong (off-by-one on the bound check). Performance is equivalent.
 **Action:** Use `strings.HasPrefix` for prefix-based string checks; the bounds-check and slicing dance is not faster.
+
+## 2024-10-24 - Precompile Regular Expressions Globally
+**Learning:** Calling `regexp.MustCompile` inside frequently executed functions (like discovery loops or parsing headers) forces the Go runtime to recompile the regex on every invocation, causing unnecessary CPU overhead and memory allocations.
+**Action:** Always declare regular expressions as package-level global variables (e.g., `var myRe = regexp.MustCompile(...)`) to ensure they are compiled exactly once at application startup.
