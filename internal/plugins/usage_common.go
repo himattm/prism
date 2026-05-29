@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/himattm/prism/internal/fsutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -391,5 +392,5 @@ func saveUsageCache(u *UsageResponse) {
 	if err != nil {
 		return
 	}
-	secureWriteFile(path, data, 0644)
+	fsutil.SecureWriteFile(path, data, 0644)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/himattm/prism/internal/fsutil"
 	"io"
 	"net/http"
 	"os"
@@ -182,7 +183,7 @@ func saveUpdateCache(c updateCache) {
 	if err != nil {
 		return
 	}
-	secureWriteFile(path, data, 0644)
+	fsutil.SecureWriteFile(path, data, 0644)
 }
 
 // compareVersions compares two semver strings
@@ -293,7 +294,7 @@ func (p *UpdatePlugin) handleAutoInstall(hookCtx HookContext) (string, error) {
 	}
 
 	// Create lock file
-	if err := secureWriteFile(lockFile, []byte(fmt.Sprintf("%d", os.Getpid())), 0644); err != nil {
+	if err := fsutil.SecureWriteFile(lockFile, []byte(fmt.Sprintf("%d", os.Getpid())), 0644); err != nil {
 		return "", nil
 	}
 
@@ -357,7 +358,7 @@ func (p *UpdatePlugin) handleUpdateNotification() (string, error) {
 	}
 
 	// Mark as prompted
-	secureWriteFile(promptedFile, []byte{}, 0644)
+	fsutil.SecureWriteFile(promptedFile, []byte{}, 0644)
 
 	// Return notification message (ANSI colors for terminal)
 	cyan := "\033[36m"
