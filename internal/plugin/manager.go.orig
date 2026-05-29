@@ -132,9 +132,6 @@ func (m *Manager) saveBinaryMetadata(binaryPath string, meta Metadata) error {
 	return os.WriteFile(jsonPath, data, 0644)
 }
 
-var metadataRe = regexp.MustCompile(`^#\s*@(\w+[-\w]*)\s+(.+)$`)
-var versionRe = regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
-
 // ParseMetadata extracts metadata from plugin header comments
 func ParseMetadata(path string) (Metadata, error) {
 	file, err := os.Open(path)
@@ -147,11 +144,14 @@ func ParseMetadata(path string) (Metadata, error) {
 	scanner := bufio.NewScanner(file)
 	lineCount := 0
 
+	// Regex to match @key value lines
+	re := regexp.MustCompile(`^#\s*@(\w+[-\w]*)\s+(.+)$`)
+
 	for scanner.Scan() && lineCount < 20 {
 		line := scanner.Text()
 		lineCount++
 
-		matches := metadataRe.FindStringSubmatch(line)
+		matches := re.FindStringSubmatch(line)
 		if len(matches) == 3 {
 			key := strings.ToLower(matches[1])
 			value := strings.TrimSpace(matches[2])
@@ -625,7 +625,8 @@ func (m *Manager) checkScriptVersion(p Plugin, client *http.Client) (string, err
 
 	content, _ := io.ReadAll(resp.Body)
 
-	matches := versionRe.FindSubmatch(content)
+	re := regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
+	matches := re.FindSubmatch(content)
 	if len(matches) < 2 {
 		return "", fmt.Errorf("no remote version")
 	}
@@ -768,7 +769,8 @@ func (m *Manager) updateScriptPlugin(p Plugin, client *http.Client) error {
 	content, _ := io.ReadAll(resp.Body)
 
 	// Parse remote version
-	matches := versionRe.FindSubmatch(content)
+	re := regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
+	matches := re.FindSubmatch(content)
 	if len(matches) < 2 {
 		fmt.Printf("  %s: no version in remote file\n", p.Name)
 		return nil
