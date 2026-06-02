@@ -5,3 +5,6 @@
 ## 2025-05-09 - Prefer strings.HasPrefix for prefix checks
 **Learning:** Manual string slicing and length checks (`len(key) >= len(prefix) && key[:len(prefix)] == prefix`) are less readable than `strings.HasPrefix` and easier to get wrong (off-by-one on the bound check). Performance is equivalent.
 **Action:** Use `strings.HasPrefix` for prefix-based string checks; the bounds-check and slicing dance is not faster.
+## 2024-05-23 - Compile Regular Expressions Once
+**Learning:** Re-compiling regular expressions with `regexp.MustCompile` inside frequently executed functions (like plugin discovery loops) causes significant CPU overhead and unnecessary memory allocations.
+**Action:** Always declare regular expressions as package-level global variables so they are compiled exactly once at application startup.
