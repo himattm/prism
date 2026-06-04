@@ -18,6 +18,11 @@ import (
 	"time"
 )
 
+var (
+	metadataRe = regexp.MustCompile(`^#\s*@(\w+[-\w]*)\s+(.+)$`)
+	versionRe  = regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
+)
+
 // sanitizeFilename ensures a filename cannot be used for path traversal
 func sanitizeFilename(name string) string {
 	return filepath.Base(filepath.Clean("/" + name))
@@ -145,13 +150,11 @@ func ParseMetadata(path string) (Metadata, error) {
 	lineCount := 0
 
 	// Regex to match @key value lines
-	re := regexp.MustCompile(`^#\s*@(\w+[-\w]*)\s+(.+)$`)
-
 	for scanner.Scan() && lineCount < 20 {
 		line := scanner.Text()
 		lineCount++
 
-		matches := re.FindStringSubmatch(line)
+		matches := metadataRe.FindStringSubmatch(line)
 		if len(matches) == 3 {
 			key := strings.ToLower(matches[1])
 			value := strings.TrimSpace(matches[2])
@@ -625,8 +628,7 @@ func (m *Manager) checkScriptVersion(p Plugin, client *http.Client) (string, err
 
 	content, _ := io.ReadAll(resp.Body)
 
-	re := regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
-	matches := re.FindSubmatch(content)
+	matches := versionRe.FindSubmatch(content)
 	if len(matches) < 2 {
 		return "", fmt.Errorf("no remote version")
 	}
@@ -769,8 +771,7 @@ func (m *Manager) updateScriptPlugin(p Plugin, client *http.Client) error {
 	content, _ := io.ReadAll(resp.Body)
 
 	// Parse remote version
-	re := regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
-	matches := re.FindSubmatch(content)
+	matches := versionRe.FindSubmatch(content)
 	if len(matches) < 2 {
 		fmt.Printf("  %s: no version in remote file\n", p.Name)
 		return nil
