@@ -225,14 +225,40 @@ func copyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	out, err := os.Create(dst)
+	info, err := in.Stat()
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
-	_, err = io.Copy(out, in)
-	return err
+	// Use os.CreateTemp and os.Rename to prevent symlink attacks
+	dir := filepath.Dir(dst)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	tmpFile, err := os.CreateTemp(dir, filepath.Base(dst)+".*")
+	if err != nil {
+		return err
+	}
+
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath) // Cleanup if anything fails
+
+	if err := tmpFile.Chmod(info.Mode() & os.ModePerm); err != nil {
+		tmpFile.Close()
+		return err
+	}
+
+	if _, err := io.Copy(tmpFile, in); err != nil {
+		tmpFile.Close()
+		return err
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpPath, dst)
 }
 
 // OnHook implements Hookable interface for auto-update and notifications
