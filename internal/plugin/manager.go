@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/himattm/prism/internal/fsutil"
 )
 
 var metadataRegex = regexp.MustCompile(`^#\s*@(\w+[-\w]*)\s+(.+)$`)
@@ -132,7 +134,7 @@ func (m *Manager) saveBinaryMetadata(binaryPath string, meta Metadata) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(jsonPath, data, 0644)
+	return fsutil.SecureWriteFile(jsonPath, data, 0644)
 }
 
 // ParseMetadata extracts metadata from plugin header comments
@@ -380,7 +382,7 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 		return err
 	}
 
-	if err := os.WriteFile(destPath, content, 0755); err != nil {
+	if err := fsutil.SecureWriteFile(destPath, content, 0755); err != nil {
 		return fmt.Errorf("failed to write plugin: %w", err)
 	}
 
@@ -456,7 +458,7 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 		return err
 	}
 
-	if err := os.WriteFile(destPath, content, 0755); err != nil {
+	if err := fsutil.SecureWriteFile(destPath, content, 0755); err != nil {
 		return fmt.Errorf("failed to write plugin: %w", err)
 	}
 
@@ -511,7 +513,7 @@ func (m *Manager) addFromDirectURL(url string) error {
 		return err
 	}
 
-	if err := os.WriteFile(destPath, content, 0755); err != nil {
+	if err := fsutil.SecureWriteFile(destPath, content, 0755); err != nil {
 		return fmt.Errorf("failed to write plugin: %w", err)
 	}
 
@@ -747,7 +749,7 @@ func (m *Manager) updateBinaryPlugin(p Plugin, client *http.Client) error {
 		return nil
 	}
 
-	if err := os.WriteFile(p.Path, content, 0755); err != nil {
+	if err := fsutil.SecureWriteFile(p.Path, content, 0755); err != nil {
 		return fmt.Errorf("failed to update %s: %w", p.Name, err)
 	}
 
@@ -778,7 +780,7 @@ func (m *Manager) updateScriptPlugin(p Plugin, client *http.Client) error {
 
 	remoteVersion := strings.TrimSpace(string(matches[1]))
 	if CompareVersions(p.Metadata.Version, remoteVersion) < 0 {
-		if err := os.WriteFile(p.Path, content, 0755); err != nil {
+		if err := fsutil.SecureWriteFile(p.Path, content, 0755); err != nil {
 			return fmt.Errorf("failed to update %s: %w", p.Name, err)
 		}
 		fmt.Printf("  %s: updated %s -> %s\n", p.Name, p.Metadata.Version, remoteVersion)

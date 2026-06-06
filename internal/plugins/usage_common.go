@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/himattm/prism/internal/fsutil"
 )
 
 const (
@@ -391,5 +393,5 @@ func saveUsageCache(u *UsageResponse) {
 	if err != nil {
 		return
 	}
-	secureWriteFile(path, data, 0644)
+	fsutil.SecureWriteFile(path, data, 0644)
 }
