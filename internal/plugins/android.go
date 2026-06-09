@@ -5,6 +5,7 @@ import (
 	"context"
 	"log"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -343,19 +344,10 @@ func findMatchingPackage(ctx context.Context, serial string, pattern string) str
 		return ""
 	}
 
-	// Convert glob pattern to regex
-	regexPattern := "^" + regexp.QuoteMeta(pattern)
-	regexPattern = strings.ReplaceAll(regexPattern, `\*`, ".*")
-	regexPattern += "$"
-	re, err := regexp.Compile(regexPattern)
-	if err != nil {
-		return ""
-	}
-
 	lines := strings.Split(out.String(), "\n")
 	for _, line := range lines {
 		line = strings.TrimPrefix(strings.TrimSpace(line), "package:")
-		if re.MatchString(line) {
+		if matched, _ := filepath.Match(pattern, line); matched {
 			return line
 		}
 	}
