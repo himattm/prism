@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -467,10 +468,18 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 }
 
 // addFromDirectURL downloads a plugin from a direct URL
-func (m *Manager) addFromDirectURL(url string) error {
-	fmt.Printf("Fetching plugin from: %s\n", url)
+func (m *Manager) addFromDirectURL(rawURL string) error {
+	fmt.Printf("Fetching plugin from: %s\n", rawURL)
 
-	resp, err := http.Get(url)
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
+	}
+
+	resp, err := http.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -489,7 +498,7 @@ func (m *Manager) addFromDirectURL(url string) error {
 	isScript := bytes.Contains(content, []byte("@prism-plugin")) || bytes.HasPrefix(content, []byte("#!"))
 
 	// Extract name from URL
-	base := filepath.Base(url)
+	base := filepath.Base(parsedURL.Path)
 	pluginName := strings.TrimPrefix(base, "prism-plugin-")
 	pluginName = strings.TrimSuffix(pluginName, ".sh")
 	// Remove platform suffix if present
@@ -521,7 +530,7 @@ func (m *Manager) addFromDirectURL(url string) error {
 	if !isScript {
 		pluginType = "binary"
 		// Save basic metadata for binary
-		meta := Metadata{Name: pluginName, Source: url}
+		meta := Metadata{Name: pluginName, Source: parsedURL.String()}
 		m.saveBinaryMetadata(destPath, meta)
 	}
 

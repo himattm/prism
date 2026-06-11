@@ -94,7 +94,7 @@ func pctToLevel(pct int) int {
 // Disk persistence
 
 var (
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	buffers = make(map[string]*Buffer) // in-memory cache of loaded buffers
 )
 
@@ -108,19 +108,31 @@ func cacheFilePath(sessionID, metric string) string {
 // Load reads a buffer from disk (or returns a cached in-memory copy).
 // Returns a new empty buffer if the file doesn't exist.
 func Load(sessionID, metric string) *Buffer {
-	mu.Lock()
-	defer mu.Unlock()
-
 	key := metric + ":" + sessionID
+
+	// Fast path: check cache with read lock
+	mu.RLock()
 	if b, ok := buffers[key]; ok {
+		mu.RUnlock()
 		return b
 	}
+	mu.RUnlock()
 
+	// Slow path: load from disk outside of write lock to avoid blocking other cache accesses
 	b := &Buffer{}
 	path := cacheFilePath(sessionID, metric)
 	data, err := os.ReadFile(path)
 	if err == nil {
 		json.Unmarshal(data, b)
+	}
+
+	// Update cache with write lock
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Double check in case another goroutine loaded it while we were reading
+	if existing, ok := buffers[key]; ok {
+		return existing
 	}
 
 	buffers[key] = b
