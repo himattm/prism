@@ -603,7 +603,11 @@ func (m *Manager) CheckUpdates() {
 }
 
 func (m *Manager) checkBinaryVersion(p Plugin, client *http.Client) (string, error) {
-	req, err := http.NewRequest("GET", p.Metadata.UpdateURL, nil)
+	parsedURL, err := url.Parse(p.Metadata.UpdateURL)
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return "", fmt.Errorf("invalid update URL scheme")
+	}
+	req, err := http.NewRequest("GET", parsedURL.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("request failed")
 	}
@@ -630,7 +634,11 @@ func (m *Manager) checkBinaryVersion(p Plugin, client *http.Client) (string, err
 }
 
 func (m *Manager) checkScriptVersion(p Plugin, client *http.Client) (string, error) {
-	resp, err := client.Get(p.Metadata.UpdateURL)
+	parsedURL, err := url.Parse(p.Metadata.UpdateURL)
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return "", fmt.Errorf("invalid update URL scheme")
+	}
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		return "", fmt.Errorf("fetch failed")
 	}
@@ -689,7 +697,12 @@ func (m *Manager) updatePlugin(p Plugin) error {
 
 func (m *Manager) updateBinaryPlugin(p Plugin, client *http.Client) error {
 	// UpdateURL for binaries points to GitHub releases API
-	req, err := http.NewRequest("GET", p.Metadata.UpdateURL, nil)
+	parsedURL, err := url.Parse(p.Metadata.UpdateURL)
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		fmt.Printf("  %s: invalid update URL scheme\n", p.Name)
+		return nil
+	}
+	req, err := http.NewRequest("GET", parsedURL.String(), nil)
 	if err != nil {
 		fmt.Printf("  %s: request failed\n", p.Name)
 		return nil
@@ -771,7 +784,12 @@ func (m *Manager) updateBinaryPlugin(p Plugin, client *http.Client) error {
 }
 
 func (m *Manager) updateScriptPlugin(p Plugin, client *http.Client) error {
-	resp, err := client.Get(p.Metadata.UpdateURL)
+	parsedURL, err := url.Parse(p.Metadata.UpdateURL)
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		fmt.Printf("  %s: invalid update URL scheme\n", p.Name)
+		return nil
+	}
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		fmt.Printf("  %s: fetch failed\n", p.Name)
 		return nil
