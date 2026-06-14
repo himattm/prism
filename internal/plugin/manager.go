@@ -138,6 +138,17 @@ func (m *Manager) saveBinaryMetadata(binaryPath string, meta Metadata) error {
 	return fsutil.SecureWriteFile(jsonPath, data, 0644)
 }
 
+func validateHTTPURL(rawURL string) (string, error) {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL: %w", err)
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return "", fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
+	}
+	return parsedURL.String(), nil
+}
+
 // ParseMetadata extracts metadata from plugin header comments
 func ParseMetadata(path string) (Metadata, error) {
 	file, err := os.Open(path)
@@ -354,8 +365,13 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Downloading %s (%s-%s)...\n", pluginName, osName, arch)
 
+	safeURL, err := validateHTTPURL(downloadURL)
+	if err != nil {
+		return err
+	}
+
 	// Download binary
-	resp, err = client.Get(downloadURL)
+	resp, err = client.Get(safeURL)
 	if err != nil {
 		return err
 	}
@@ -603,7 +619,11 @@ func (m *Manager) CheckUpdates() {
 }
 
 func (m *Manager) checkBinaryVersion(p Plugin, client *http.Client) (string, error) {
-	req, err := http.NewRequest("GET", p.Metadata.UpdateURL, nil)
+	safeURL, err := validateHTTPURL(p.Metadata.UpdateURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid update URL: %w", err)
+	}
+	req, err := http.NewRequest("GET", safeURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("request failed")
 	}
@@ -630,7 +650,11 @@ func (m *Manager) checkBinaryVersion(p Plugin, client *http.Client) (string, err
 }
 
 func (m *Manager) checkScriptVersion(p Plugin, client *http.Client) (string, error) {
-	resp, err := client.Get(p.Metadata.UpdateURL)
+	safeURL, err := validateHTTPURL(p.Metadata.UpdateURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid update URL: %w", err)
+	}
+	resp, err := client.Get(safeURL)
 	if err != nil {
 		return "", fmt.Errorf("fetch failed")
 	}
@@ -689,7 +713,12 @@ func (m *Manager) updatePlugin(p Plugin) error {
 
 func (m *Manager) updateBinaryPlugin(p Plugin, client *http.Client) error {
 	// UpdateURL for binaries points to GitHub releases API
-	req, err := http.NewRequest("GET", p.Metadata.UpdateURL, nil)
+	safeURL, err := validateHTTPURL(p.Metadata.UpdateURL)
+	if err != nil {
+		fmt.Printf("  %s: invalid update URL\n", p.Name)
+		return nil
+	}
+	req, err := http.NewRequest("GET", safeURL, nil)
 	if err != nil {
 		fmt.Printf("  %s: request failed\n", p.Name)
 		return nil
@@ -744,8 +773,14 @@ func (m *Manager) updateBinaryPlugin(p Plugin, client *http.Client) error {
 		return nil
 	}
 
+	safeURL2, err := validateHTTPURL(downloadURL)
+	if err != nil {
+		fmt.Printf("  %s: invalid download URL\n", p.Name)
+		return nil
+	}
+
 	// Download new binary
-	resp, err = client.Get(downloadURL)
+	resp, err = client.Get(safeURL2)
 	if err != nil {
 		fmt.Printf("  %s: download failed\n", p.Name)
 		return nil
@@ -771,7 +806,12 @@ func (m *Manager) updateBinaryPlugin(p Plugin, client *http.Client) error {
 }
 
 func (m *Manager) updateScriptPlugin(p Plugin, client *http.Client) error {
-	resp, err := client.Get(p.Metadata.UpdateURL)
+	safeURL, err := validateHTTPURL(p.Metadata.UpdateURL)
+	if err != nil {
+		fmt.Printf("  %s: invalid update URL\n", p.Name)
+		return nil
+	}
+	resp, err := client.Get(safeURL)
 	if err != nil {
 		fmt.Printf("  %s: fetch failed\n", p.Name)
 		return nil
