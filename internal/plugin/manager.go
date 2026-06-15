@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -27,6 +28,51 @@ var versionRegex = regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
 // sanitizeFilename ensures a filename cannot be used for path traversal
 func sanitizeFilename(name string) string {
 	return filepath.Base(filepath.Clean("/" + name))
+}
+
+func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+	if err != nil {
+		return nil, err
+	}
+
+	var validatedIP net.IP
+	for _, ip := range ips {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() {
+			return nil, fmt.Errorf("access to private/loopback IP (%s) is forbidden", ip)
+		}
+		// Also block cloud metadata services (169.254.169.254)
+		if ip.Equal(net.ParseIP("169.254.169.254")) {
+			return nil, fmt.Errorf("access to cloud metadata IP is forbidden")
+		}
+		validatedIP = ip
+	}
+
+	// Dial the validated IP directly to prevent DNS rebinding
+	dialAddr := net.JoinHostPort(validatedIP.String(), port)
+
+	return (&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}).DialContext(ctx, network, dialAddr)
+}
+
+var safeTransport = func() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.DialContext = safeDialContext
+	return t
+}()
+
+func safeHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Transport: safeTransport,
+		Timeout:   timeout,
+	}
 }
 
 // Manager handles plugin discovery, execution, and management
@@ -309,7 +355,7 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 
 	// Try to fetch release info
 	releaseURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := safeHTTPClient(10 * time.Second)
 
 	req, err := http.NewRequest("GET", releaseURL, nil)
 	if err != nil {
@@ -407,7 +453,7 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	resp, err := safeHTTPClient(10 * time.Second).Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -479,7 +525,7 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	resp, err := safeHTTPClient(10 * time.Second).Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -563,7 +609,7 @@ func (m *Manager) CheckUpdates() {
 	fmt.Println()
 
 	updatesAvailable := false
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := safeHTTPClient(5 * time.Second)
 
 	for _, p := range plugins {
 		if p.Metadata.UpdateURL == "" {
@@ -679,7 +725,7 @@ func (m *Manager) updatePlugin(p Plugin) error {
 
 	fmt.Printf("  %s: checking...\n", p.Name)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := safeHTTPClient(10 * time.Second)
 
 	if p.IsBinary {
 		return m.updateBinaryPlugin(p, client)
