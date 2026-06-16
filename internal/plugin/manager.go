@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -401,13 +402,36 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 	return nil
 }
 
+func getSafeHTTPClient() *http.Client {
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+		ips, err := net.LookupIP(host)
+		if err != nil {
+			return nil, err
+		}
+		for _, ip := range ips {
+			if ip.IsLoopback() || ip.IsPrivate() || ip.Equal(net.ParseIP("169.254.169.254")) {
+				return nil, fmt.Errorf("SSRF prevention: blocked access to %s", ip)
+			}
+		}
+		return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), port))
+	}
+	return &http.Client{Transport: transport, Timeout: 10 * time.Second}
+}
+
 // addScriptPlugin downloads a script plugin from GitHub
 func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/prism-plugin-%s.sh", owner, repo, pluginName)
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	client := getSafeHTTPClient()
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -479,7 +503,8 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	client := getSafeHTTPClient()
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
