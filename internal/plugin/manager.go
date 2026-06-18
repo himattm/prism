@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
@@ -23,6 +25,36 @@ import (
 
 var metadataRegex = regexp.MustCompile(`^#\s*@(\w+[-\w]*)\s+(.+)$`)
 var versionRegex = regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
+
+// safeHTTPClient returns an http.Client that prevents Server-Side Request Forgery (SSRF)
+// by blocking connections to loopback, private, link-local, and unspecified IPs at the socket level.
+func safeHTTPClient() *http.Client {
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			// Strip IPv6 Zone Identifier if present to prevent parsing bypass
+			cleanHost := strings.Split(host, "%")[0]
+			ip := net.ParseIP(cleanHost)
+			if ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()) {
+				return fmt.Errorf("blocked IP: %s (SSRF prevention)", ip)
+			}
+			return nil
+		},
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = dialer.DialContext
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   60 * time.Second,
+	}
+}
 
 // sanitizeFilename ensures a filename cannot be used for path traversal
 func sanitizeFilename(name string) string {
@@ -407,7 +439,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	client := safeHTTPClient()
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -479,7 +512,8 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	client := safeHTTPClient()
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
