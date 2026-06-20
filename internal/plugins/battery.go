@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -112,9 +111,6 @@ func getBatteryLinux() (int, bool) {
 	return -1, false
 }
 
-// batteryPctRe matches "42%" in pmset output
-var batteryPctRe = regexp.MustCompile(`(\d+)%`)
-
 // getBatteryDarwin parses `pmset -g batt` output on macOS.
 // Example output:
 //
@@ -133,12 +129,24 @@ func getBatteryDarwin() (int, bool) {
 
 	output := out.String()
 
-	// Find percentage
-	match := batteryPctRe.FindStringSubmatch(output)
-	if match == nil {
+	// Find percentage without regex
+	idx := strings.IndexByte(output, '%')
+	if idx <= 0 {
 		return -1, false
 	}
-	pct, err := strconv.Atoi(match[1])
+
+	start := idx - 1
+	for start >= 0 && output[start] >= '0' && output[start] <= '9' {
+		start--
+	}
+
+	if start == idx-1 {
+		// no digits found
+		return -1, false
+	}
+
+	pctStr := output[start+1 : idx]
+	pct, err := strconv.Atoi(pctStr)
 	if err != nil {
 		return -1, false
 	}
