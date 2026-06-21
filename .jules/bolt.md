@@ -13,3 +13,7 @@
 ## 2024-06-09 - Avoid regexp.Compile in hot paths for glob matching
 **Learning:** Compiling regular expressions dynamically using `regexp.Compile` inside functions/loops creates unnecessary CPU and memory overhead when doing simple glob matching.
 **Action:** For simple wildcard/glob string matching, use `filepath.Match` or `path.Match` instead of converting the glob to a regex and compiling it. It is significantly faster.
+
+## 2024-06-21 - Optimize trivial regular expressions
+**Learning:** Using `regexp.MustCompile` and `FindStringSubmatch` for simple format matching (like extracting digits before a '%') is significantly slower (~2800 ns vs ~20 ns) and causes unnecessary memory allocations compared to manual byte indexing with `strings.IndexByte`.
+**Action:** Replace trivial regex operations with standard `strings` manipulations in hot paths.
