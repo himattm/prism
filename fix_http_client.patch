@@ -1,0 +1,61 @@
+--- internal/plugin/manager.go
++++ internal/plugin/manager.go
+@@ -35,6 +35,40 @@
+	return filepath.Base(filepath.Clean("/" + name))
+ }
+
++var defaultSafeClient = func() *http.Client {
++	dialer := &net.Dialer{
++		Timeout:   30 * time.Second,
++		KeepAlive: 30 * time.Second,
++		Control: func(network, address string, c syscall.RawConn) error {
++			host, _, err := net.SplitHostPort(address)
++			if err != nil {
++				return err
++			}
++			host = strings.Split(host, "%")[0]
++			ip := net.ParseIP(host)
++			if ip == nil {
++				return errors.New("invalid IP address")
++			}
++			if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() {
++				return errors.New("blocked IP address")
++			}
++			return nil
++		},
++	}
++
++	return &http.Client{
++		Transport: &http.Transport{
++			Proxy:                 http.ProxyFromEnvironment,
++			DialContext:           dialer.DialContext,
++			ForceAttemptHTTP2:     true,
++			MaxIdleConns:          100,
++			IdleConnTimeout:       90 * time.Second,
++			TLSHandshakeTimeout:   10 * time.Second,
++			ExpectContinueTimeout: 1 * time.Second,
++		},
++		Timeout: 15 * time.Second,
++	}
++}()
++
+ // Manager handles plugin discovery, execution, and management
+ type Manager struct {
+@@ -410,7 +444,7 @@
+
+	fmt.Printf("Fetching script from: %s\n", rawURL)
+
+-	resp, err := safeHTTPClient().Get(rawURL)
++	resp, err := defaultSafeClient.Get(rawURL)
+	if err != nil {
+		return fmt.Errorf("failed to fetch plugin: %w", err)
+	}
+@@ -482,7 +516,7 @@
+		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
+	}
+
+-	resp, err := safeHTTPClient().Get(parsedURL.String())
++	resp, err := defaultSafeClient.Get(parsedURL.String())
+	if err != nil {
+		return fmt.Errorf("failed to fetch plugin: %w", err)
+	}
