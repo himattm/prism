@@ -21,7 +21,6 @@ import (
 	"github.com/himattm/prism/internal/fsutil"
 )
 
-var metadataRegex = regexp.MustCompile(`^#\s*@(\w+[-\w]*)\s+(.+)$`)
 var versionRegex = regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
 
 // sanitizeFilename ensures a filename cannot be used for path traversal
@@ -156,10 +155,22 @@ func ParseMetadata(path string) (Metadata, error) {
 		line := scanner.Text()
 		lineCount++
 
-		matches := metadataRegex.FindStringSubmatch(line)
-		if len(matches) == 3 {
-			key := strings.ToLower(matches[1])
-			value := strings.TrimSpace(matches[2])
+		if !strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		stripped := strings.TrimPrefix(line, "#")
+		stripped = strings.TrimSpace(stripped)
+
+		if !strings.HasPrefix(stripped, "@") {
+			continue
+		}
+
+		stripped = strings.TrimPrefix(stripped, "@")
+		idx := strings.IndexAny(stripped, " \t")
+		if idx != -1 {
+			key := strings.ToLower(stripped[:idx])
+			value := strings.TrimSpace(stripped[idx+1:])
 
 			switch key {
 			case "name":
