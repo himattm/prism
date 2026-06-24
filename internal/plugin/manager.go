@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -839,11 +840,12 @@ func CompareVersions(a, b string) int {
 
 	for i := 0; i < maxLen; i++ {
 		var numA, numB int
+		// Optimization: Use strconv.Atoi instead of fmt.Sscanf for significantly faster integer parsing
 		if i < len(partsA) {
-			fmt.Sscanf(partsA[i], "%d", &numA)
+			numA, _ = strconv.Atoi(partsA[i])
 		}
 		if i < len(partsB) {
-			fmt.Sscanf(partsB[i], "%d", &numB)
+			numB, _ = strconv.Atoi(partsB[i])
 		}
 
 		if numA < numB {
