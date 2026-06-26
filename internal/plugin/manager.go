@@ -309,7 +309,7 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 
 	// Try to fetch release info
 	releaseURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := secureHTTPClient(10 * time.Second)
 
 	req, err := http.NewRequest("GET", releaseURL, nil)
 	if err != nil {
@@ -407,7 +407,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	client := secureHTTPClient(10 * time.Second)
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -479,7 +480,8 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	client := secureHTTPClient(10 * time.Second)
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -563,7 +565,7 @@ func (m *Manager) CheckUpdates() {
 	fmt.Println()
 
 	updatesAvailable := false
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := secureHTTPClient(5 * time.Second)
 
 	for _, p := range plugins {
 		if p.Metadata.UpdateURL == "" {
@@ -679,7 +681,7 @@ func (m *Manager) updatePlugin(p Plugin) error {
 
 	fmt.Printf("  %s: checking...\n", p.Name)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := secureHTTPClient(10 * time.Second)
 
 	if p.IsBinary {
 		return m.updateBinaryPlugin(p, client)
