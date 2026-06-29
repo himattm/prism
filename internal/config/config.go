@@ -42,20 +42,44 @@ func DefaultSectionLines() [][]string {
 	}
 }
 
-// DefaultSectionLinesForAgent returns the default multi-line layout tailored to
-// the host agent. Pi does not expose Anthropic-specific data (plan usage limits,
-// API cost, or Anthropic peak-hour windows), so those Claude-only sections are
-// omitted from Pi's default layout. An explicit "sections" config always wins
-// over these defaults regardless of agent.
-func DefaultSectionLinesForAgent(agent string) [][]string {
-	if strings.EqualFold(agent, "pi") {
-		return [][]string{
-			{"dir", "model", "context", "git"},
-			{"supabase", "vercel", "android"},
-			{"spotify"},
+// claudeOnlySections depend on Anthropic-specific data (plan usage limits, API
+// cost, Anthropic peak-hour windows) that other agents like Pi don't provide.
+// They are filtered out of non-Claude layouts.
+var claudeOnlySections = map[string]bool{
+	"usage":     true,
+	"cost":      true,
+	"peakhours": true,
+}
+
+// FilterSectionsForAgent removes sections the given agent can't supply data for.
+// For Claude Code (or an empty/unknown agent) the lines are returned unchanged;
+// for Pi the Claude-only sections are dropped and any line left empty is removed.
+// This applies to explicitly-configured layouts too, so a config shared between
+// Claude Code and Pi renders cleanly in both.
+func FilterSectionsForAgent(agent string, lines [][]string) [][]string {
+	if !strings.EqualFold(agent, "pi") {
+		return lines
+	}
+	filtered := make([][]string, 0, len(lines))
+	for _, line := range lines {
+		kept := make([]string, 0, len(line))
+		for _, sec := range line {
+			if !claudeOnlySections[sec] {
+				kept = append(kept, sec)
+			}
+		}
+		if len(kept) > 0 {
+			filtered = append(filtered, kept)
 		}
 	}
-	return DefaultSectionLines()
+	return filtered
+}
+
+// DefaultSectionLinesForAgent returns the default multi-line layout tailored to
+// the host agent (the standard default with Claude-only sections filtered out
+// for Pi).
+func DefaultSectionLinesForAgent(agent string) [][]string {
+	return FilterSectionsForAgent(agent, DefaultSectionLines())
 }
 
 // DefaultSections returns the default sections as a flat list (for backwards compatibility)
