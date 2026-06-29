@@ -78,9 +78,19 @@ func checkIsIdle(sessionID string) bool {
 	return true
 }
 
+// sectionLines returns the section layout to render. When the user has not
+// configured "sections", it falls back to the agent-aware default layout so Pi
+// sessions don't show Claude-only sections (cost, plan usage, peak hours).
+func (sl *StatusLine) sectionLines() [][]string {
+	if sl.config.Sections == nil {
+		return config.DefaultSectionLinesForAgent(sl.input.Agent)
+	}
+	return sl.config.GetAllSectionLines()
+}
+
 // Render generates the status line output
 func (sl *StatusLine) Render() string {
-	lines := sl.config.GetAllSectionLines()
+	lines := sl.sectionLines()
 	var output []string
 
 	for i, sections := range lines {

@@ -41,6 +41,22 @@ func DefaultSectionLines() [][]string {
 	}
 }
 
+// DefaultSectionLinesForAgent returns the default multi-line layout tailored to
+// the host agent. Pi does not expose Anthropic-specific data (plan usage limits,
+// API cost, or Anthropic peak-hour windows), so those Claude-only sections are
+// omitted from Pi's default layout. An explicit "sections" config always wins
+// over these defaults regardless of agent.
+func DefaultSectionLinesForAgent(agent string) [][]string {
+	if agent == "pi" {
+		return [][]string{
+			{"dir", "model", "context", "git"},
+			{"supabase", "vercel", "android"},
+			{"spotify"},
+		}
+	}
+	return DefaultSectionLines()
+}
+
 // DefaultSections returns the default sections as a flat list (for backwards compatibility)
 func DefaultSections() []string {
 	lines := DefaultSectionLines()

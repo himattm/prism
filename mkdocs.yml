@@ -80,6 +80,8 @@ nav:
     - Built-in Plugins: plugins/built-in-plugins.md
     - Custom Plugins: plugins/custom-plugins.md
     - Script Plugins: plugins/script-plugins.md
+  - Integrations:
+    - Pi coding agent: integrations/pi.md
   - Hooks: hooks.md
   - Contributing:
     - How to Contribute: contributing/contributing.md
