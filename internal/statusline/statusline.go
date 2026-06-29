@@ -86,7 +86,7 @@ func checkIsIdle(sessionID string) bool {
 func (sl *StatusLine) sectionLines() [][]string {
 	var lines [][]string
 	if sl.config.Sections == nil {
-		lines = config.DefaultSectionLinesForAgent(sl.input.Agent)
+		lines = config.DefaultSectionLines()
 	} else {
 		lines = sl.config.GetAllSectionLines()
 	}

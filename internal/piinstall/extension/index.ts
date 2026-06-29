@@ -172,7 +172,10 @@ export default function prism(pi: any) {
       inFlight = false;
       if (pending) {
         pending = false;
-        void render(latestCtx); // re-render with the freshest ctx, not a stale one
+        // Re-render with the freshest ctx, but via scheduleRender so the next
+        // render still respects MIN_RENDER_INTERVAL_MS instead of spawning prism
+        // back-to-back during a rapid event stream.
+        scheduleRender(latestCtx);
       }
     }
   }
