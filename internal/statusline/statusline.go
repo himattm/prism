@@ -84,13 +84,9 @@ func checkIsIdle(sessionID string) bool {
 // the Pi agent — including explicitly-configured layouts, since the installer
 // writes an explicit default config and a config may be shared across agents.
 func (sl *StatusLine) sectionLines() [][]string {
-	var lines [][]string
-	if sl.config.Sections == nil {
-		lines = config.DefaultSectionLines()
-	} else {
-		lines = sl.config.GetAllSectionLines()
-	}
-	return config.FilterSectionsForAgent(sl.input.Agent, lines)
+	// GetAllSectionLines already falls back to the default layout when no
+	// "sections" are configured; we then drop Claude-only sections for Pi.
+	return config.FilterSectionsForAgent(sl.input.Agent, sl.config.GetAllSectionLines())
 }
 
 // Render generates the status line output

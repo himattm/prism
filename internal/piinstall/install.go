@@ -124,8 +124,8 @@ func writeBinPath(dst string) error {
 	if abs, err := filepath.Abs(exe); err == nil {
 		exe = abs
 	}
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
-	}
+	// Intentionally not resolving symlinks: keeping the invoked path means a
+	// symlink-based install (e.g. Homebrew) still points at the current binary
+	// after an upgrade, rather than a stale versioned target.
 	return os.WriteFile(filepath.Join(dst, "prism-bin.txt"), []byte(exe+"\n"), 0o644)
 }
