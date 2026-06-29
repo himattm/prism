@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -826,6 +827,20 @@ func (m *Manager) Remove(name string) error {
 	return nil
 }
 
+func parseLeadingDigits(s string) int {
+	var i int
+	for i = 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			break
+		}
+	}
+	if i == 0 {
+		return 0
+	}
+	val, _ := strconv.Atoi(s[:i])
+	return val
+}
+
 // CompareVersions compares two semver strings
 // Returns -1 if a < b, 0 if a == b, 1 if a > b
 func CompareVersions(a, b string) int {
@@ -840,10 +855,10 @@ func CompareVersions(a, b string) int {
 	for i := 0; i < maxLen; i++ {
 		var numA, numB int
 		if i < len(partsA) {
-			fmt.Sscanf(partsA[i], "%d", &numA)
+			numA = parseLeadingDigits(partsA[i])
 		}
 		if i < len(partsB) {
-			fmt.Sscanf(partsB[i], "%d", &numB)
+			numB = parseLeadingDigits(partsB[i])
 		}
 
 		if numA < numB {
