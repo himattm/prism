@@ -140,7 +140,8 @@ function runPrism(args: string[], stdinData: string, cwd: string, timeoutMs: num
       stdout += chunk;
     });
     child.on("error", () => done({ code: 1, stdout: "" }));
-    child.on("close", (code: number | null) => done({ code: code ?? 0, stdout }));
+    // A signal-killed child reports a null code; treat that as failure, not success.
+    child.on("close", (code: number | null) => done({ code: code ?? 1, stdout }));
     // If prism exits before reading all of stdin, the write can emit an async
     // 'error' (EPIPE). Without this listener that would crash the host process.
     child.stdin?.on("error", () => {
@@ -162,6 +163,7 @@ export default function prism(pi: any) {
   let inFlight = false;
   let trailingTimer: ReturnType<typeof setTimeout> | null = null;
   let latestCtx: any = null; // always render against the most recent event's ctx
+  let isShutdown = false; // once set, stop all rendering and subprocess spawning
 
   function clearTrailing(): void {
     if (trailingTimer) {
@@ -171,6 +173,7 @@ export default function prism(pi: any) {
   }
 
   async function render(ctx: any): Promise<void> {
+    if (isShutdown) return;
     latestCtx = ctx;
     clearTrailing(); // a direct render supersedes any queued trailing render
     if (inFlight) {
@@ -193,7 +196,7 @@ export default function prism(pi: any) {
       debugLog(`render failed: ${String(err)}`);
     } finally {
       inFlight = false;
-      if (pending) {
+      if (pending && !isShutdown) {
         pending = false;
         // Re-render with the freshest ctx, but via scheduleRender so the next
         // render still respects MIN_RENDER_INTERVAL_MS instead of spawning prism
@@ -207,6 +210,7 @@ export default function prism(pi: any) {
   // interval, but always render once more on the trailing edge so the final
   // state is never dropped.
   function scheduleRender(ctx: any): void {
+    if (isShutdown) return;
     latestCtx = ctx;
     if (inFlight) {
       pending = true;
@@ -228,6 +232,7 @@ export default function prism(pi: any) {
   // Reuse prism's existing idle/busy marker machinery so the idle indicator and
   // any idle-gated plugins (e.g. auto-update) behave the same as in Claude Code.
   async function setBusy(ctx: any, busy: boolean): Promise<void> {
+    if (isShutdown) return;
     const id = sessionId(ctx);
     if (!id) return;
     await runPrism(["hook", busy ? "busy" : "idle"], JSON.stringify({ session_id: id }), ctx?.cwd ?? process.cwd(), HOOK_TIMEOUT_MS);
@@ -257,6 +262,10 @@ export default function prism(pi: any) {
     void render(ctx);
   });
 
-  // Don't leave a pending timer holding the event loop open on shutdown.
-  pi.on("session_shutdown", () => clearTrailing());
+  // Stop all background activity and don't leave a pending timer holding the
+  // event loop open on shutdown.
+  pi.on("session_shutdown", () => {
+    isShutdown = true;
+    clearTrailing();
+  });
 }
