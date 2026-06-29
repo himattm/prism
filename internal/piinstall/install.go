@@ -117,6 +117,9 @@ func writeBinPath(dst string) error {
 		// Not fatal: the extension falls back to `prism` on PATH.
 		return nil
 	}
+	if abs, err := filepath.Abs(exe); err == nil {
+		exe = abs
+	}
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}

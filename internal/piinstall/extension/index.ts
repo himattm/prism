@@ -98,14 +98,16 @@ function runPrism(args: string[], stdinData: string, cwd: string, timeoutMs: num
 
     let stdout = "";
     let settled = false;
+    // Declared before `done` so the closure can't hit a temporal dead zone.
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const done = (result: ExecResult) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       resolve(result);
     };
 
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       try {
         child.kill("SIGKILL");
       } catch {
@@ -139,6 +141,7 @@ export default function prism(pi: any) {
   let pending = false; // a render is queued behind the in-flight one
   let inFlight = false;
   let trailingTimer: ReturnType<typeof setTimeout> | null = null;
+  let latestCtx: any = null; // always render against the most recent event's ctx
 
   function clearTrailing(): void {
     if (trailingTimer) {
@@ -148,6 +151,7 @@ export default function prism(pi: any) {
   }
 
   async function render(ctx: any): Promise<void> {
+    latestCtx = ctx;
     clearTrailing(); // a direct render supersedes any queued trailing render
     if (inFlight) {
       pending = true; // coalesce: run exactly once more after the current one
@@ -156,10 +160,11 @@ export default function prism(pi: any) {
     inFlight = true;
     lastRender = Date.now();
     try {
-      const { code, stdout } = await runPrism([], buildInput(ctx), ctx?.cwd ?? process.cwd(), RENDER_TIMEOUT_MS);
+      const cur = latestCtx;
+      const { code, stdout } = await runPrism([], buildInput(cur), cur?.cwd ?? process.cwd(), RENDER_TIMEOUT_MS);
       if (code === 0) {
         const text = stdout.replace(/\n+$/, "");
-        ctx?.ui?.setStatus?.(STATUS_KEY, text.length > 0 ? text : undefined);
+        cur?.ui?.setStatus?.(STATUS_KEY, text.length > 0 ? text : undefined);
       }
     } catch {
       /* keep the previous status on failure */
@@ -167,7 +172,7 @@ export default function prism(pi: any) {
       inFlight = false;
       if (pending) {
         pending = false;
-        void render(ctx);
+        void render(latestCtx); // re-render with the freshest ctx, not a stale one
       }
     }
   }
@@ -176,19 +181,20 @@ export default function prism(pi: any) {
   // interval, but always render once more on the trailing edge so the final
   // state is never dropped.
   function scheduleRender(ctx: any): void {
+    latestCtx = ctx;
     if (inFlight) {
       pending = true;
       return;
     }
     const remaining = MIN_RENDER_INTERVAL_MS - (Date.now() - lastRender);
     if (remaining <= 0) {
-      void render(ctx);
+      void render(latestCtx);
       return;
     }
     if (!trailingTimer) {
       trailingTimer = setTimeout(() => {
         trailingTimer = null;
-        void render(ctx);
+        void render(latestCtx);
       }, remaining);
     }
   }

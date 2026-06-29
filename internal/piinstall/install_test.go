@@ -9,6 +9,7 @@ import (
 func TestInstallAndUninstall(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() uses USERPROFILE on Windows
 
 	dir, err := Install()
 	if err != nil {
@@ -51,6 +52,7 @@ func TestInstallAndUninstall(t *testing.T) {
 func TestDetected(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // os.UserHomeDir() uses USERPROFILE on Windows
 
 	if Detected() {
 		t.Error("Detected() = true before ~/.pi exists")
