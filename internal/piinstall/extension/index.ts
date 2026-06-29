@@ -88,7 +88,9 @@ function runPrism(args: string[], stdinData: string, cwd: string, timeoutMs: num
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(PRISM_BIN, args, { cwd });
+      // Ignore the child's stderr: we only consume stdout + the exit code, and
+      // an unread piped stderr can block the child once its buffer fills.
+      child = spawn(PRISM_BIN, args, { cwd, stdio: ["pipe", "pipe", "ignore"] });
     } catch {
       resolve({ code: 1, stdout: "" });
       return;
@@ -117,6 +119,11 @@ function runPrism(args: string[], stdinData: string, cwd: string, timeoutMs: num
     });
     child.on("error", () => done({ code: 1, stdout: "" }));
     child.on("close", (code: number | null) => done({ code: code ?? 0, stdout }));
+    // If prism exits before reading all of stdin, the write can emit an async
+    // 'error' (EPIPE). Without this listener that would crash the host process.
+    child.stdin?.on("error", () => {
+      /* ignored: the close/error handlers settle the promise */
+    });
 
     try {
       child.stdin?.write(stdinData);
@@ -129,15 +136,25 @@ function runPrism(args: string[], stdinData: string, cwd: string, timeoutMs: num
 
 export default function prism(pi: any) {
   let lastRender = 0;
-  let pending = false;
+  let pending = false; // a render is queued behind the in-flight one
   let inFlight = false;
+  let trailingTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearTrailing(): void {
+    if (trailingTimer) {
+      clearTimeout(trailingTimer);
+      trailingTimer = null;
+    }
+  }
 
   async function render(ctx: any): Promise<void> {
+    clearTrailing(); // a direct render supersedes any queued trailing render
     if (inFlight) {
-      pending = true;
+      pending = true; // coalesce: run exactly once more after the current one
       return;
     }
     inFlight = true;
+    lastRender = Date.now();
     try {
       const { code, stdout } = await runPrism([], buildInput(ctx), ctx?.cwd ?? process.cwd(), RENDER_TIMEOUT_MS);
       if (code === 0) {
@@ -155,15 +172,25 @@ export default function prism(pi: any) {
     }
   }
 
-  // Throttle bursty events (e.g. message_update) to one render per interval.
+  // Throttle bursty events (e.g. message_update) to at most one render per
+  // interval, but always render once more on the trailing edge so the final
+  // state is never dropped.
   function scheduleRender(ctx: any): void {
-    const now = Date.now();
-    if (now - lastRender < MIN_RENDER_INTERVAL_MS) {
+    if (inFlight) {
       pending = true;
       return;
     }
-    lastRender = now;
-    void render(ctx);
+    const remaining = MIN_RENDER_INTERVAL_MS - (Date.now() - lastRender);
+    if (remaining <= 0) {
+      void render(ctx);
+      return;
+    }
+    if (!trailingTimer) {
+      trailingTimer = setTimeout(() => {
+        trailingTimer = null;
+        void render(ctx);
+      }, remaining);
+    }
   }
 
   // Reuse prism's existing idle/busy marker machinery so the idle indicator and
@@ -197,4 +224,7 @@ export default function prism(pi: any) {
     lastRender = 0;
     void render(ctx);
   });
+
+  // Don't leave a pending timer holding the event loop open on shutdown.
+  pi.on("session_shutdown", () => clearTrailing());
 }

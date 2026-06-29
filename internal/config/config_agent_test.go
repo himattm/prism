@@ -20,6 +20,13 @@ func TestDefaultSectionLinesForAgent(t *testing.T) {
 		t.Errorf("pi default layout missing a core section: %v", pi)
 	}
 
+	// The agent match is case-insensitive.
+	for _, variant := range []string{"Pi", "PI"} {
+		if containsSection(DefaultSectionLinesForAgent(variant), "usage") {
+			t.Errorf("agent %q should map to the pi layout (no usage)", variant)
+		}
+	}
+
 	// Empty / claude-code agents get the standard default.
 	for _, agent := range []string{"", "claude-code"} {
 		got := DefaultSectionLinesForAgent(agent)

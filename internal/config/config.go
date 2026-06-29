@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/himattm/prism/internal/fsutil"
 	"github.com/himattm/prism/internal/version"
@@ -47,7 +48,7 @@ func DefaultSectionLines() [][]string {
 // omitted from Pi's default layout. An explicit "sections" config always wins
 // over these defaults regardless of agent.
 func DefaultSectionLinesForAgent(agent string) [][]string {
-	if agent == "pi" {
+	if strings.EqualFold(agent, "pi") {
 		return [][]string{
 			{"dir", "model", "context", "git"},
 			{"supabase", "vercel", "android"},
