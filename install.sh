@@ -436,7 +436,7 @@ fi
 if [ -d "$HOME/.pi" ]; then
     echo ""
     info "Detected Pi (~/.pi) — installing Prism's Pi extension..."
-    if "$CLAUDE_DIR/prism" install-pi 2>/dev/null; then
+    if "$CLAUDE_DIR/prism" install-pi; then
         success "  Installed Pi extension (restart Pi to load it)"
     else
         echo -e "  ${DIM}Could not install Pi extension automatically; run '$CLAUDE_DIR/prism install-pi' manually.${RESET}"

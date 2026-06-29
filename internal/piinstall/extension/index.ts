@@ -12,7 +12,8 @@
 // the prism binary to invoke. Users never have to write or install it by hand.
 
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,6 +25,19 @@ const STATUS_KEY = "prism";
 const RENDER_TIMEOUT_MS = 5000;
 const HOOK_TIMEOUT_MS = 3000;
 const MIN_RENDER_INTERVAL_MS = 600;
+
+// Opt-in failure logging. Deliberately writes to a file rather than
+// stdout/stderr: this extension runs inside Pi's TUI process, and console output
+// would corrupt the rendered terminal. Failures are silent by default (the
+// previous status is kept) but become diagnosable when PRISM_PI_DEBUG is set.
+function debugLog(message: string): void {
+  if (!process.env.PRISM_PI_DEBUG) return;
+  try {
+    appendFileSync(join(tmpdir(), "prism-pi.log"), `[${new Date().toISOString()}] ${message}\n`);
+  } catch {
+    /* logging must never throw or affect rendering */
+  }
+}
 
 // Resolve the prism binary: explicit override, then the path recorded by
 // `prism install-pi` next to this file, then fall back to PATH.
@@ -93,7 +107,8 @@ function runPrism(args: string[], stdinData: string, cwd: string, timeoutMs: num
       // Ignore the child's stderr: we only consume stdout + the exit code, and
       // an unread piped stderr can block the child once its buffer fills.
       child = spawn(PRISM_BIN, args, { cwd, stdio: ["pipe", "pipe", "ignore"] });
-    } catch {
+    } catch (e) {
+      debugLog(`failed to spawn prism (${PRISM_BIN}): ${String(e)}`);
       resolve({ code: 1, stdout: "" });
       return;
     }
@@ -170,9 +185,12 @@ export default function prism(pi: any) {
       if (code === 0) {
         const text = stdout.replace(/\n+$/, "");
         cur?.ui?.setStatus?.(STATUS_KEY, text.length > 0 ? text : undefined);
+      } else {
+        debugLog(`prism exited with code ${code}`);
       }
-    } catch {
-      /* keep the previous status on failure */
+    } catch (err) {
+      // Keep the previous status on failure; surface the cause only when opted in.
+      debugLog(`render failed: ${String(err)}`);
     } finally {
       inFlight = false;
       if (pending) {
