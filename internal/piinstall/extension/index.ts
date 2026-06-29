@@ -68,8 +68,10 @@ function buildInput(ctx: any): string {
       display_name: ctx?.model?.name ?? ctx?.model?.id ?? "",
     },
     workspace: {
-      project_dir: ctx?.cwd ?? "",
-      current_dir: ctx?.cwd ?? "",
+      // Fall back to the process cwd (matching the spawn cwd) so prism always
+      // gets a real directory for git/worktree resolution.
+      project_dir: ctx?.cwd || process.cwd(),
+      current_dir: ctx?.cwd || process.cwd(),
     },
     context_window: {
       context_window_size: usage?.contextWindow ?? 0,
@@ -116,8 +118,11 @@ function runPrism(args: string[], stdinData: string, cwd: string, timeoutMs: num
       done({ code: 124, stdout });
     }, timeoutMs);
 
-    child.stdout?.on("data", (chunk: { toString(): string }) => {
-      stdout += chunk.toString();
+    // Decode as UTF-8 across chunk boundaries so multi-byte glyphs in prism's
+    // output (💎, ░▒█, ⎇) can't be corrupted by a split between chunks.
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
     });
     child.on("error", () => done({ code: 1, stdout: "" }));
     child.on("close", (code: number | null) => done({ code: code ?? 0, stdout }));
