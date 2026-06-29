@@ -16,7 +16,11 @@ import (
 	"path/filepath"
 )
 
-//go:embed extension
+// Embed only the specific files the extension needs, rather than the whole
+// directory, so local dev artifacts (e.g. node_modules) can never be bundled
+// into the binary. Add new extension files here explicitly.
+//
+//go:embed extension/index.ts extension/package.json
 var extensionFS embed.FS
 
 const embeddedRoot = "extension"
