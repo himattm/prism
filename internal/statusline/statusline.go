@@ -86,7 +86,26 @@ func checkIsIdle(sessionID string) bool {
 func (sl *StatusLine) sectionLines() [][]string {
 	// GetAllSectionLines already falls back to the default layout when no
 	// "sections" are configured; we then drop Claude-only sections for Pi.
-	return config.FilterSectionsForAgent(sl.input.Agent, sl.config.GetAllSectionLines())
+	lines := config.FilterSectionsForAgent(sl.input.Agent, sl.config.GetAllSectionLines())
+
+	// Pi renders status as a single-line footer (ctx.ui.setStatus), so collapse
+	// any multi-line layout into one line rather than emitting embedded newlines.
+	if strings.EqualFold(sl.input.Agent, "pi") {
+		lines = flattenSectionLines(lines)
+	}
+	return lines
+}
+
+// flattenSectionLines collapses a multi-line layout into a single line.
+func flattenSectionLines(lines [][]string) [][]string {
+	var flat []string
+	for _, line := range lines {
+		flat = append(flat, line...)
+	}
+	if len(flat) == 0 {
+		return nil
+	}
+	return [][]string{flat}
 }
 
 // Render generates the status line output

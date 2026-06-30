@@ -92,6 +92,13 @@ func runStatusLine() {
 	sl := statusline.New(input, cfg)
 	output := sl.Render()
 
+	// Honor NO_COLOR (https://no-color.org). Pi inherits the user's environment,
+	// so this also lets Pi users drop to plain text if their host doesn't render
+	// raw ANSI in the status footer.
+	if os.Getenv("NO_COLOR") != "" {
+		output = colors.StripANSI(output)
+	}
+
 	fmt.Print(output)
 }
 

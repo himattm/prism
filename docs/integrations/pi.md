@@ -74,6 +74,19 @@ layout is used as-is in both agents.
   identically; only the Claude-only sections above are dropped from the Pi
   default.
 
+## Single line
+
+Pi renders status as a single-line footer, so Prism collapses any multi-line
+layout into one line for the Pi agent (after dropping the Claude-only sections
+above). Your multi-line config still renders as multiple lines in Claude Code.
+
+## Colors
+
+Prism emits ANSI color by default. If your Pi/terminal shows the status as
+literal escape codes instead of colors, set `NO_COLOR=1` in the environment Pi
+runs in — Prism (and the Pi extension, which inherits the environment) will then
+render plain text. See [no-color.org](https://no-color.org/).
+
 ## Limitations
 
 - Cost is not available from Pi, so cost-based sections show nothing there.

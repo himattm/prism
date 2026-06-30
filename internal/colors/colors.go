@@ -1,6 +1,18 @@
 package colors
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
+
+// ansiPattern matches ANSI SGR (color/style) escape sequences.
+var ansiPattern = regexp.MustCompile("\x1b\\[[0-9;]*m")
+
+// StripANSI removes ANSI color/style escape sequences from s. Used to honor
+// NO_COLOR and to support hosts (e.g. some TUIs) that don't interpret raw ANSI.
+func StripANSI(s string) string {
+	return ansiPattern.ReplaceAllString(s, "")
+}
 
 // ANSI color codes - A full spectrum for Prism
 const (
