@@ -14,6 +14,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/himattm/prism/internal/version"
 )
 
 // Embed only the specific files the extension needs, rather than the whole
@@ -67,7 +70,41 @@ func Install() (string, error) {
 		return "", err
 	}
 
+	if err := writeVersion(dst); err != nil {
+		return "", err
+	}
+
 	return dst, nil
+}
+
+// RefreshIfStale re-materializes the embedded extension files when an installed
+// Pi extension was written by a different prism version than the running binary.
+// This keeps the shim in sync after an auto-update (which replaces the binary but
+// not the on-disk extension). It preserves the recorded binary path and is a
+// no-op when the extension isn't installed or is already current. Returns whether
+// a refresh was performed.
+func RefreshIfStale() (bool, error) {
+	dst, err := ExtensionDir()
+	if err != nil {
+		return false, err
+	}
+
+	// Only touch an existing installation.
+	if _, err := os.Stat(dst); err != nil {
+		return false, nil
+	}
+
+	if installedVersion(dst) == version.Version {
+		return false, nil
+	}
+
+	if err := writeEmbeddedFiles(dst); err != nil {
+		return false, err
+	}
+	if err := writeVersion(dst); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Uninstall removes the installed Pi extension directory. It is not an error if
@@ -111,6 +148,24 @@ func writeEmbeddedFiles(dst string) error {
 		}
 		return nil
 	})
+}
+
+func versionFile(dst string) string { return filepath.Join(dst, "version.txt") }
+
+// installedVersion returns the prism version that wrote the installed extension,
+// or "" if unknown.
+func installedVersion(dst string) string {
+	data, err := os.ReadFile(versionFile(dst))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// writeVersion records the running binary's version alongside the extension so a
+// later run can detect when the on-disk shim is stale.
+func writeVersion(dst string) error {
+	return os.WriteFile(versionFile(dst), []byte(version.Version+"\n"), 0o644)
 }
 
 // writeBinPath records the absolute path of the running prism binary next to the

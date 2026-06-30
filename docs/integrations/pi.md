@@ -62,8 +62,14 @@ layout is used as-is in both agents.
 ## What carries over
 
 - **Idle/busy indicator** — the extension maps Pi's `agent_start` / `agent_end`
-  events to Prism's existing idle/busy markers, so idle-gated behavior (like
-  auto-update) works the same.
+  events to Prism's existing idle/busy markers, so idle-gated behavior works the
+  same.
+- **Auto-update** — because the idle marker is set in Pi, Prism's binary
+  auto-updates in Pi exactly as in Claude Code (it replaces `~/.claude/prism`,
+  the standard install location). The embedded Pi extension is version-stamped
+  and re-materialized automatically on the next idle after an update, so the
+  shim never drifts from the binary. You can still update manually with
+  `prism update` and re-sync the shim with `prism install-pi`.
 - **Plugins & config** — the 3-tier config system and all plugins behave
   identically; only the Claude-only sections above are dropped from the Pi
   default.
