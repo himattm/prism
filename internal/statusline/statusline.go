@@ -411,9 +411,20 @@ func formatContextWindowSize(tokens int) string {
 	return fmt.Sprintf("(%d)", tokens)
 }
 
+// autocompactBuffer returns the autocompact buffer percentage to use. The buffer
+// models Claude Code's autocompact trigger (proximity scaling + a buffer zone on
+// the bar); Pi has no such mechanism, so it defaults to 0 there unless the user
+// configured a buffer explicitly.
+func (sl *StatusLine) autocompactBuffer() float64 {
+	if sl.config.AutocompactBuffer == nil && strings.EqualFold(sl.input.Agent, "pi") {
+		return 0
+	}
+	return sl.config.GetAutocompactBuffer()
+}
+
 func (sl *StatusLine) renderContext() string {
-	// Get autocompact buffer from config (default 22.5%)
-	bufferPct := sl.config.GetAutocompactBuffer()
+	// Get autocompact buffer (default 22.5% for Claude Code, 0 for Pi)
+	bufferPct := sl.autocompactBuffer()
 
 	// Check if Claude Code provided the new percentage fields (2.1.6+)
 	// Use used_percentage directly, or calculate from remaining_percentage
@@ -447,8 +458,8 @@ func (sl *StatusLine) calculateContextPctLegacy() int {
 		windowSize = 200000 // Default
 	}
 
-	// Get autocompact buffer from config (default 22.5%)
-	bufferPct := sl.config.GetAutocompactBuffer()
+	// Get autocompact buffer (default 22.5% for Claude Code, 0 for Pi)
+	bufferPct := sl.autocompactBuffer()
 
 	// Calculate usable capacity (total - buffer)
 	usableCapacity := windowSize

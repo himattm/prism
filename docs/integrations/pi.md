@@ -92,3 +92,6 @@ render plain text. See [no-color.org](https://no-color.org/).
 - Cost is not available from Pi, so cost-based sections show nothing there.
 - Token detail beyond the total context usage Pi reports is not exposed, so the
   context bar uses Pi's reported percentage.
+- The context bar reflects raw context usage in Pi (colored at 70%/90%). The
+  Claude-specific "% until autocompact" scaling and buffer zone are disabled for
+  Pi unless you set `autocompactBuffer` explicitly in your config.
