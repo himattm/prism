@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
@@ -309,7 +311,7 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 
 	// Try to fetch release info
 	releaseURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := secureHTTPClient(10 * time.Second)
 
 	req, err := http.NewRequest("GET", releaseURL, nil)
 	if err != nil {
@@ -407,7 +409,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	client := secureHTTPClient(10 * time.Second)
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -479,7 +482,8 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	client := secureHTTPClient(10 * time.Second)
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -563,7 +567,7 @@ func (m *Manager) CheckUpdates() {
 	fmt.Println()
 
 	updatesAvailable := false
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := secureHTTPClient(5 * time.Second)
 
 	for _, p := range plugins {
 		if p.Metadata.UpdateURL == "" {
@@ -679,7 +683,7 @@ func (m *Manager) updatePlugin(p Plugin) error {
 
 	fmt.Printf("  %s: checking...\n", p.Name)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := secureHTTPClient(10 * time.Second)
 
 	if p.IsBinary {
 		return m.updateBinaryPlugin(p, client)
@@ -855,4 +859,41 @@ func CompareVersions(a, b string) int {
 	}
 
 	return 0
+}
+
+// secureHTTPClient returns an http.Client configured to prevent SSRF
+func secureHTTPClient(timeout time.Duration) *http.Client {
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			host = strings.Split(host, "%")[0]
+			ip := net.ParseIP(host)
+			if ip != nil {
+				if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() {
+					return fmt.Errorf("SSRF prevention: IP %s is not allowed", ip)
+				}
+			}
+			return nil
+		},
+	}
+
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   timeout,
+	}
 }

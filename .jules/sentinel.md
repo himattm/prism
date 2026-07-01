@@ -12,3 +12,8 @@
 **Vulnerability:** The `addFromDirectURL` function passed untrusted user-provided URLs directly to `http.Get()`. This allows Server-Side Request Forgery (SSRF), where an attacker could coerce the application to make requests to unexpected or private schemes and endpoints.
 **Learning:** Go's `net/http` client will execute requests for any valid scheme if not explicitly restricted. User-supplied URLs must always be validated before being used in outbound requests.
 **Prevention:** Always parse untrusted URLs using `net/url.Parse` and enforce an explicit allowlist of acceptable schemes (e.g., only `http` and `https`) before making HTTP requests.
+
+## 2024-05-18 - Full SSRF Prevention with net.Dialer
+**Vulnerability:** URL scheme validation alone does not prevent SSRF. Attackers can provide valid HTTP/HTTPS URLs that resolve to internal IPs (like 127.0.0.1 or cloud metadata services) to bypass filters.
+**Learning:** `http.Get` and default `http.Client` configurations will happily connect to any IP resolved from a domain, making them vulnerable to DNS rebinding or direct internal IP addresses.
+**Prevention:** Use a custom `net.Dialer` with a `Control` hook to intercept the resolved IP address *before* the connection is made. Reject private, loopback, unspecified, and link-local unicast IPs to fully mitigate SSRF.
