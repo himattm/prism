@@ -840,10 +840,24 @@ func CompareVersions(a, b string) int {
 	for i := 0; i < maxLen; i++ {
 		var numA, numB int
 		if i < len(partsA) {
-			fmt.Sscanf(partsA[i], "%d", &numA)
+			for j := 0; j < len(partsA[i]); j++ {
+				c := partsA[i][j]
+				if c >= '0' && c <= '9' {
+					numA = numA*10 + int(c-'0')
+				} else {
+					break
+				}
+			}
 		}
 		if i < len(partsB) {
-			fmt.Sscanf(partsB[i], "%d", &numB)
+			for j := 0; j < len(partsB[i]); j++ {
+				c := partsB[i][j]
+				if c >= '0' && c <= '9' {
+					numB = numB*10 + int(c-'0')
+				} else {
+					break
+				}
+			}
 		}
 
 		if numA < numB {
