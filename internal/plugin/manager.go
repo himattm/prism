@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
@@ -407,7 +409,7 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	resp, err := secureHTTPClient().Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -479,7 +481,7 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	resp, err := secureHTTPClient().Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -855,4 +857,41 @@ func CompareVersions(a, b string) int {
 	}
 
 	return 0
+}
+
+func secureHTTPClient() *http.Client {
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			host = strings.Split(host, "%")[0]
+			ip := net.ParseIP(host)
+			if ip == nil {
+				return fmt.Errorf("invalid IP: %s", host)
+			}
+			if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() {
+				return fmt.Errorf("blocked IP address: %s", ip.String())
+			}
+			return nil
+		},
+	}
+
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second,
+	}
 }
