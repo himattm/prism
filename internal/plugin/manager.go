@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
@@ -407,7 +409,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	client := getSecureClient(10 * time.Second)
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -479,7 +482,8 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	client := getSecureClient(10 * time.Second)
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -563,7 +567,7 @@ func (m *Manager) CheckUpdates() {
 	fmt.Println()
 
 	updatesAvailable := false
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := getSecureClient(5 * time.Second)
 
 	for _, p := range plugins {
 		if p.Metadata.UpdateURL == "" {
@@ -679,7 +683,7 @@ func (m *Manager) updatePlugin(p Plugin) error {
 
 	fmt.Printf("  %s: checking...\n", p.Name)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := getSecureClient(10 * time.Second)
 
 	if p.IsBinary {
 		return m.updateBinaryPlugin(p, client)
@@ -855,4 +859,38 @@ func CompareVersions(a, b string) int {
 	}
 
 	return 0
+}
+
+// getSecureClient returns an HTTP client protected against SSRF.
+func getSecureClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+				Control: func(network, address string, c syscall.RawConn) error {
+					host, _, err := net.SplitHostPort(address)
+					if err != nil {
+						return err
+					}
+					host = strings.Split(host, "%")[0]
+					ip := net.ParseIP(host)
+					if ip == nil {
+						return fmt.Errorf("invalid IP: %s", host)
+					}
+					if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() {
+						return fmt.Errorf("SSRF protection: blocked access to IP %s", ip.String())
+					}
+					return nil
+				},
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
 }
