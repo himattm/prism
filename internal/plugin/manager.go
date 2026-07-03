@@ -826,6 +826,19 @@ func (m *Manager) Remove(name string) error {
 	return nil
 }
 
+// parseIntLenient is a lenient replacement for fmt.Sscanf("%d")
+func parseIntLenient(s string) int {
+	var n int
+	for i := 0; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			n = n*10 + int(s[i]-'0')
+		} else {
+			break
+		}
+	}
+	return n
+}
+
 // CompareVersions compares two semver strings
 // Returns -1 if a < b, 0 if a == b, 1 if a > b
 func CompareVersions(a, b string) int {
@@ -840,10 +853,10 @@ func CompareVersions(a, b string) int {
 	for i := 0; i < maxLen; i++ {
 		var numA, numB int
 		if i < len(partsA) {
-			fmt.Sscanf(partsA[i], "%d", &numA)
+			numA = parseIntLenient(partsA[i])
 		}
 		if i < len(partsB) {
-			fmt.Sscanf(partsB[i], "%d", &numB)
+			numB = parseIntLenient(partsB[i])
 		}
 
 		if numA < numB {
