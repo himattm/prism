@@ -13,3 +13,6 @@
 ## 2024-06-09 - Avoid regexp.Compile in hot paths for glob matching
 **Learning:** Compiling regular expressions dynamically using `regexp.Compile` inside functions/loops creates unnecessary CPU and memory overhead when doing simple glob matching.
 **Action:** For simple wildcard/glob string matching, use `filepath.Match` or `path.Match` instead of converting the glob to a regex and compiling it. It is significantly faster.
+## 2024-06-09 - Avoid fmt.Sscanf in hot paths for integer parsing
+**Learning:** Using `fmt.Sscanf` for parsing simple integers from strings incurs significant reflection and parsing overhead, which can be easily avoided by manual indexing and `strconv.ParseInt`.
+**Action:** Replace `fmt.Sscanf` with manual splitting and `strconv.ParseInt` for better performance.
