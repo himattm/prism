@@ -16,6 +16,7 @@ import (
 
 	"github.com/himattm/prism/internal/cache"
 	"github.com/himattm/prism/internal/fsutil"
+	"github.com/himattm/prism/internal/httputil"
 	"github.com/himattm/prism/internal/plugin"
 )
 
@@ -134,7 +135,7 @@ func fetchLatestVersion(ctx context.Context) (string, error) {
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := httputil.SafeClient(3 * time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err

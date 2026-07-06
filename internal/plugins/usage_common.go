@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
+	"github.com/himattm/prism/internal/httputil"
 )
 
 const (
@@ -181,7 +182,7 @@ func FetchUsage(ctx context.Context, token string) (*UsageResponse, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-beta", "oauth-2025-04-20")
 
-	client := &http.Client{Timeout: usageAPITimeout}
+	client := httputil.SafeClient(usageAPITimeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch usage: %w", err)
