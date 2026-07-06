@@ -110,7 +110,23 @@ func getCPUPercentLinux(c *cache.Cache) int {
 	var prevTotal, prevIdle int64
 	if c != nil {
 		if prev, ok := c.Get(prevCPUKey); ok {
-			fmt.Sscanf(prev, "%d,%d", &prevTotal, &prevIdle)
+			comma := strings.IndexByte(prev, ',')
+			if comma != -1 {
+				for j := 0; j < comma; j++ {
+					if prev[j] >= '0' && prev[j] <= '9' {
+						prevTotal = prevTotal*10 + int64(prev[j]-'0')
+					} else {
+						break
+					}
+				}
+				for j := comma + 1; j < len(prev); j++ {
+					if prev[j] >= '0' && prev[j] <= '9' {
+						prevIdle = prevIdle*10 + int64(prev[j]-'0')
+					} else {
+						break
+					}
+				}
+			}
 		}
 	}
 

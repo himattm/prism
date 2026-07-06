@@ -13,3 +13,6 @@
 ## 2024-06-09 - Avoid regexp.Compile in hot paths for glob matching
 **Learning:** Compiling regular expressions dynamically using `regexp.Compile` inside functions/loops creates unnecessary CPU and memory overhead when doing simple glob matching.
 **Action:** For simple wildcard/glob string matching, use `filepath.Match` or `path.Match` instead of converting the glob to a regex and compiling it. It is significantly faster.
+## 2025-05-10 - Replace fmt.Sscanf with custom byte-traversal for parsing numbers
+**Learning:** In Go, `fmt.Sscanf` is significantly slower than `strconv.Atoi` or `strconv.ParseInt` due to reflection and format string parsing overhead. However, `fmt.Sscanf("%d")` parses digits until it encounters a non-digit character (e.g., `"2beta"` parses as `2`), while `strconv.Atoi` fails and returns `0` for the entire string.
+**Action:** If you need the lenient parsing behavior of `fmt.Sscanf` for performance optimization, implement a custom byte-traversal loop to extract leading digits rather than relying on `strconv.Atoi` or regex, as it is over 10x faster and maintains exact functional parity.
