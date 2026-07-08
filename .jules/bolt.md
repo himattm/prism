@@ -13,3 +13,6 @@
 ## 2024-06-09 - Avoid regexp.Compile in hot paths for glob matching
 **Learning:** Compiling regular expressions dynamically using `regexp.Compile` inside functions/loops creates unnecessary CPU and memory overhead when doing simple glob matching.
 **Action:** For simple wildcard/glob string matching, use `filepath.Match` or `path.Match` instead of converting the glob to a regex and compiling it. It is significantly faster.
+## 2025-07-08 - Avoid fmt.Sscanf in hot paths
+**Learning:** `fmt.Sscanf` is significantly slower than parsing digits manually due to reflection and format string parsing overhead, but provides a lenient behavior of parsing leading digits before failing. `strconv.Atoi` fails entirely on mixed strings.
+**Action:** If you need the lenient parsing behavior of `fmt.Sscanf` for performance optimization, implement a custom byte-traversal loop to extract leading digits, which is over 10x faster and maintains exact functional parity.
