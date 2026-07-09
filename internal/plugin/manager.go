@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
+	"github.com/himattm/prism/internal/httputil"
 )
 
 var metadataRegex = regexp.MustCompile(`^#\s*@(\w+[-\w]*)\s+(.+)$`)
@@ -479,7 +480,8 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	client := httputil.SafeClient(10 * time.Second)
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
