@@ -840,10 +840,10 @@ func CompareVersions(a, b string) int {
 	for i := 0; i < maxLen; i++ {
 		var numA, numB int
 		if i < len(partsA) {
-			fmt.Sscanf(partsA[i], "%d", &numA)
+			numA = parseLenientInt(partsA[i])
 		}
 		if i < len(partsB) {
-			fmt.Sscanf(partsB[i], "%d", &numB)
+			numB = parseLenientInt(partsB[i])
 		}
 
 		if numA < numB {
@@ -855,4 +855,18 @@ func CompareVersions(a, b string) int {
 	}
 
 	return 0
+}
+
+// parseLenientInt parses leading digits of a string into an integer.
+// It stops parsing when it encounters a non-digit character (like fmt.Sscanf("%d")).
+func parseLenientInt(s string) int {
+	var n int
+	for i := 0; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			n = n*10 + int(s[i]-'0')
+		} else {
+			break
+		}
+	}
+	return n
 }
