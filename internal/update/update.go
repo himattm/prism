@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/himattm/prism/internal/httputil"
 	"io"
 	"net/http"
 	"os"
@@ -76,7 +77,7 @@ func Download(ctx context.Context) error {
 		return err
 	}
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := httputil.SafeClient(60 * time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to download: %w", err)
@@ -126,7 +127,7 @@ func fetchLatestVersion(ctx context.Context) (string, error) {
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := httputil.SafeClient(10 * time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err

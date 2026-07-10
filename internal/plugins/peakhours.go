@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/himattm/prism/internal/httputil"
 	"io"
 	"net/http"
 	"strings"
@@ -161,7 +162,7 @@ func (p *PeakHoursPlugin) fetchFromAPI(ctx context.Context, colors map[string]st
 		return nil, 0
 	}
 
-	client := &http.Client{Timeout: peakHoursAPITimeout}
+	client := httputil.SafeClient(peakHoursAPITimeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0
