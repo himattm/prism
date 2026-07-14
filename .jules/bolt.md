@@ -13,3 +13,6 @@
 ## 2024-06-09 - Avoid regexp.Compile in hot paths for glob matching
 **Learning:** Compiling regular expressions dynamically using `regexp.Compile` inside functions/loops creates unnecessary CPU and memory overhead when doing simple glob matching.
 **Action:** For simple wildcard/glob string matching, use `filepath.Match` or `path.Match` instead of converting the glob to a regex and compiling it. It is significantly faster.
+## 2024-07-14 - Replace fmt.Sscanf with strings.IndexByte and strconv.ParseInt in hot paths
+**Learning:** `fmt.Sscanf` and `fmt.Sprintf` are significantly slower due to reflection and format string parsing overhead (over 25x slower). In Go, when parsing strictly formatted strings separated by a known single-byte delimiter (e.g., "%d,%d"), replacing `fmt.Sscanf` with `strings.IndexByte` and `strconv.ParseInt` avoids the overhead of `fmt.Sscanf` and slice allocations. Additionally, replacing `fmt.Sprintf` with string concatenation and `strconv.FormatInt` avoids reflection and is much faster for simple string construction.
+**Action:** Replace `fmt.Sscanf` and `fmt.Sprintf` with these faster alternatives in hot paths (such as the `cpu.go` plugin).

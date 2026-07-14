@@ -3,7 +3,6 @@ package plugins
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
@@ -110,13 +109,16 @@ func getCPUPercentLinux(c *cache.Cache) int {
 	var prevTotal, prevIdle int64
 	if c != nil {
 		if prev, ok := c.Get(prevCPUKey); ok {
-			fmt.Sscanf(prev, "%d,%d", &prevTotal, &prevIdle)
+			if idx := strings.IndexByte(prev, ','); idx != -1 {
+				prevTotal, _ = strconv.ParseInt(prev[:idx], 10, 64)
+				prevIdle, _ = strconv.ParseInt(prev[idx+1:], 10, 64)
+			}
 		}
 	}
 
 	// Save current snapshot
 	if c != nil {
-		c.Set(prevCPUKey, fmt.Sprintf("%d,%d", total, idle), 30*time.Second)
+		c.Set(prevCPUKey, strconv.FormatInt(total, 10)+","+strconv.FormatInt(idle, 10), 30*time.Second)
 	}
 
 	// Calculate delta
