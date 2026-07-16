@@ -828,6 +828,19 @@ func (m *Manager) Remove(name string) error {
 
 // CompareVersions compares two semver strings
 // Returns -1 if a < b, 0 if a == b, 1 if a > b
+// parseLeadingInt extracts leading digits from a string as an integer, similar to fmt.Sscanf("%d") but much faster
+func parseLeadingInt(s string) int {
+	num := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			num = num*10 + int(s[i]-'0')
+		} else {
+			break
+		}
+	}
+	return num
+}
+
 func CompareVersions(a, b string) int {
 	partsA := strings.Split(a, ".")
 	partsB := strings.Split(b, ".")
@@ -840,10 +853,10 @@ func CompareVersions(a, b string) int {
 	for i := 0; i < maxLen; i++ {
 		var numA, numB int
 		if i < len(partsA) {
-			fmt.Sscanf(partsA[i], "%d", &numA)
+			numA = parseLeadingInt(partsA[i])
 		}
 		if i < len(partsB) {
-			fmt.Sscanf(partsB[i], "%d", &numB)
+			numB = parseLeadingInt(partsB[i])
 		}
 
 		if numA < numB {
