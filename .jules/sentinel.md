@@ -13,7 +13,7 @@
 **Learning:** Go's `net/http` client will execute requests for any valid scheme if not explicitly restricted. User-supplied URLs must always be validated before being used in outbound requests.
 **Prevention:** Always parse untrusted URLs using `net/url.Parse` and enforce an explicit allowlist of acceptable schemes (e.g., only `http` and `https`) before making HTTP requests.
 
-## 2025-05-15 - Prevent IP-Level SSRF via DNS Rebinding and IP Formats
-**Vulnerability:** While untrusted URLs had scheme validation (`http`/`https`), the plugin manager still used the default `http.Client` to resolve and connect to the provided host. This left it vulnerable to advanced SSRF attacks via DNS rebinding, internal IP formats (e.g., `0x7f000001`), or explicit requests to internal network segments (loopback, private subnets, link-local metadata endpoints).
-**Learning:** Basic URL scheme validation is insufficient for SSRF protection because attackers can supply valid URLs that resolve to internal IP addresses during connection. The Go standard library does not inherently block outbound connections to internal networks.
-**Prevention:** Use a custom `http.Client` with a `net.Dialer` configured with a `Control` hook. This hook intercepts the exact IP address resolved by Go *before* the socket connects, enabling explicit rejection of loopback, private, unspecified, and link-local unicast IPs (like AWS IMDS), effectively mitigating IP-level SSRF and DNS rebinding attacks.
+## 2025-05-15 - Rejected: IP-Level SSRF via DNS Rebinding Mitigation
+**Vulnerability:** The plugin manager uses the default `http.Client` for fetching URLs, lacking IP-level restrictions (like loopback or private subnet checks), posing a theoretical SSRF/DNS Rebinding risk.
+**Learning:** For a local developer CLI like Prism, unconditionally blocking private or loopback IP addresses represents a breaking functional change, as users may legitimately need to interact with local proxies or private enterprise networks.
+**Prevention:** Do not implement blanket IP-level network blocking policies for local dev tools. Such changes require opt-in configurations and proxy handling rather than being treated as simple SSRF bug fixes.
