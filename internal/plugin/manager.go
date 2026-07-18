@@ -145,9 +145,12 @@ func ParseMetadata(path string) (Metadata, error) {
 		return Metadata{}, err
 	}
 	defer file.Close()
+	return parseMetadataFromReader(file)
+}
 
+func parseMetadataFromReader(r io.Reader) (Metadata, error) {
 	meta := Metadata{}
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(r)
 	lineCount := 0
 
 	// Regex to match @key value lines
@@ -427,22 +430,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 		return fmt.Errorf("file doesn't appear to be a Prism plugin (missing @prism-plugin header)")
 	}
 
-	// Write to temp file to parse metadata
-	tmpFile, err := os.CreateTemp("", "prism-plugin-*")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
-
-	if _, err := tmpFile.Write(content); err != nil {
-		tmpFile.Close()
-		return err
-	}
-	tmpFile.Close()
-
-	// Parse metadata
-	meta, _ := ParseMetadata(tmpPath)
+	// Parse metadata directly from memory
+	meta, _ := parseMetadataFromReader(bytes.NewReader(content))
 	if meta.Name == "" {
 		meta.Name = pluginName
 	}
