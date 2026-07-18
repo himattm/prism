@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,7 +16,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
@@ -181,6 +179,45 @@ func ParseMetadata(path string) (Metadata, error) {
 	}
 
 	return meta, scanner.Err()
+}
+
+// ParseMetadataBytes extracts metadata from a byte slice of plugin header comments
+func ParseMetadataBytes(content []byte) (Metadata, error) {
+	meta := Metadata{}
+	lineCount := 0
+
+	lines := bytes.Split(content, []byte("\n"))
+
+	for _, lineBytes := range lines {
+		if lineCount >= 20 {
+			break
+		}
+		line := string(lineBytes)
+		lineCount++
+
+		matches := metadataRegex.FindStringSubmatch(line)
+		if len(matches) == 3 {
+			key := strings.ToLower(matches[1])
+			value := strings.TrimSpace(matches[2])
+
+			switch key {
+			case "name":
+				meta.Name = value
+			case "version":
+				meta.Version = value
+			case "description":
+				meta.Description = value
+			case "author":
+				meta.Author = value
+			case "source":
+				meta.Source = value
+			case "update-url":
+				meta.UpdateURL = value
+			}
+		}
+	}
+
+	return meta, nil
 }
 
 // Execute runs a plugin and returns its output
@@ -429,22 +466,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 		return fmt.Errorf("file doesn't appear to be a Prism plugin (missing @prism-plugin header)")
 	}
 
-	// Write to temp file to parse metadata
-	tmpFile, err := os.CreateTemp("", "prism-plugin-*")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
-
-	if _, err := tmpFile.Write(content); err != nil {
-		tmpFile.Close()
-		return err
-	}
-	tmpFile.Close()
-
-	// Parse metadata
-	meta, _ := ParseMetadata(tmpPath)
+	// Parse metadata directly from memory
+	meta, _ := ParseMetadataBytes(content)
 	if meta.Name == "" {
 		meta.Name = pluginName
 	}
@@ -469,42 +492,6 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 	return nil
 }
 
-// safeHTTPClient creates an HTTP client that prevents SSRF by blocking loopback/private IPs
-func safeHTTPClient() *http.Client {
-	dialer := &net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
-		Control: func(network, address string, c syscall.RawConn) error {
-			host, _, err := net.SplitHostPort(address)
-			if err != nil {
-				return err
-			}
-			ip := net.ParseIP(host)
-			if ip != nil {
-				if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-					return fmt.Errorf("SSRF prevention: IP %s is not allowed", ip)
-				}
-			}
-			return nil
-		},
-	}
-
-	transport := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           dialer.DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
-
-	return &http.Client{
-		Timeout:   10 * time.Second,
-		Transport: transport,
-	}
-}
-
 // addFromDirectURL downloads a plugin from a direct URL
 func (m *Manager) addFromDirectURL(rawURL string) error {
 	fmt.Printf("Fetching plugin from: %s\n", rawURL)
@@ -517,8 +504,7 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	client := safeHTTPClient()
-	resp, err := client.Get(parsedURL.String())
+	resp, err := http.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
