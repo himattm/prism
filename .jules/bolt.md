@@ -17,3 +17,7 @@
 ## 2025-05-19 - Avoid fmt.Sscanf for simple integer parsing
 **Learning:** In Go, `fmt.Sscanf` is significantly slower than `strconv.Atoi` or `strconv.ParseInt` due to reflection and format string parsing overhead. However, `fmt.Sscanf("%d")` parses digits until it encounters a non-digit character (e.g., `"2beta"` parses as `2`), while `strconv.Atoi` fails and returns `0` for the entire string.
 **Action:** If you need the lenient parsing behavior of `fmt.Sscanf` for performance optimization, implement a custom byte-traversal loop to extract leading digits rather than relying on `strconv.Atoi` or regex, as it is over 10x faster and maintains exact functional parity.
+
+## 2025-05-19 - Do not prematurely optimize non-bottleneck slow paths
+**Learning:** Even if an operation (`fmt.Sscanf`) is demonstrably slow in micro-benchmarks, optimizing it with custom manual parsers introduces maintenance complexity. If the surrounding code is not a meaningful end-to-end bottleneck, the maintenance tradeoff outweighs the microscopic performance gain.
+**Action:** Before optimizing a slow standard library function, verify that the containing code path is actually an end-to-end performance bottleneck. Avoid micro-optimizations that sacrifice readability and standard library usage for marginal gains in non-critical paths.
