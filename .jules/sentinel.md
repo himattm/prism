@@ -17,3 +17,8 @@
 **Vulnerability:** Validating URL schemes (e.g., `http`/`https`) does not prevent Server-Side Request Forgery (SSRF) attacks against internal network resources (like `http://127.0.0.1` or `http://169.254.169.254`).
 **Learning:** Go's standard `http.Get` or simple custom clients will blindly follow DNS resolution to local or private IPs.
 **Prevention:** Use a custom `http.Client` with a `net.Dialer` and a `Control` hook to validate the exact resolved IP address before the socket connects, rejecting loopback, private, unspecified, and link-local unicast IPs.
+
+## 2024-05-19 - SSRF Mitigations in Local CLI Tools
+**Vulnerability:** Attempted to unconditionally block loopback and private IPs to mitigate Server-Side Request Forgery (SSRF) in a local CLI tool using a `net.Dialer` control hook.
+**Learning:** For local CLI applications (unlike remote web servers), fetching from local/private URLs or relying on local proxy routing is often legitimate and expected functionality. Unconditional private IP blocking breaks this functional requirement and cannot be used as a safe, drop-in SSRF fix.
+**Prevention:** When mitigating SSRF in local CLI tools, network policies (like blocking private IPs) must be implemented as opt-in configurations with proper redirect and proxy behavior handling, rather than unconditional blocks.
