@@ -840,10 +840,10 @@ func CompareVersions(a, b string) int {
 	for i := 0; i < maxLen; i++ {
 		var numA, numB int
 		if i < len(partsA) {
-			fmt.Sscanf(partsA[i], "%d", &numA)
+			numA = parseIntLenient(partsA[i])
 		}
 		if i < len(partsB) {
-			fmt.Sscanf(partsB[i], "%d", &numB)
+			numB = parseIntLenient(partsB[i])
 		}
 
 		if numA < numB {
@@ -855,4 +855,25 @@ func CompareVersions(a, b string) int {
 	}
 
 	return 0
+}
+
+// parseIntLenient parses an integer from a string, stopping at the first non-digit character.
+// ⚡ Bolt: This replaces fmt.Sscanf which is significantly slower due to reflection and format parsing.
+// Lenient parsing is required to correctly handle version suffixes like "beta" (e.g., "1.2.3beta" -> 1.2.3).
+func parseIntLenient(s string) int {
+	var n int
+	sign := 1
+	start := 0
+	if len(s) > 0 && s[0] == '-' {
+		sign = -1
+		start = 1
+	}
+	for i := start; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			n = n*10 + int(s[i]-'0')
+		} else {
+			break
+		}
+	}
+	return n * sign
 }
