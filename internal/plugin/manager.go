@@ -138,16 +138,9 @@ func (m *Manager) saveBinaryMetadata(binaryPath string, meta Metadata) error {
 	return fsutil.SecureWriteFile(jsonPath, data, 0644)
 }
 
-// ParseMetadata extracts metadata from plugin header comments
-func ParseMetadata(path string) (Metadata, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return Metadata{}, err
-	}
-	defer file.Close()
-
+func parseMetadataReader(r io.Reader) (Metadata, error) {
 	meta := Metadata{}
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(r)
 	lineCount := 0
 
 	// Regex to match @key value lines
@@ -179,6 +172,17 @@ func ParseMetadata(path string) (Metadata, error) {
 	}
 
 	return meta, scanner.Err()
+}
+
+// ParseMetadata extracts metadata from plugin header comments
+func ParseMetadata(path string) (Metadata, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return Metadata{}, err
+	}
+	defer file.Close()
+
+	return parseMetadataReader(file)
 }
 
 // Execute runs a plugin and returns its output
@@ -427,22 +431,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 		return fmt.Errorf("file doesn't appear to be a Prism plugin (missing @prism-plugin header)")
 	}
 
-	// Write to temp file to parse metadata
-	tmpFile, err := os.CreateTemp("", "prism-plugin-*")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
-
-	if _, err := tmpFile.Write(content); err != nil {
-		tmpFile.Close()
-		return err
-	}
-	tmpFile.Close()
-
 	// Parse metadata
-	meta, _ := ParseMetadata(tmpPath)
+	meta, _ := parseMetadataReader(bytes.NewReader(content))
 	if meta.Name == "" {
 		meta.Name = pluginName
 	}
