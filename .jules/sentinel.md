@@ -12,3 +12,8 @@
 **Vulnerability:** The `addFromDirectURL` function passed untrusted user-provided URLs directly to `http.Get()`. This allows Server-Side Request Forgery (SSRF), where an attacker could coerce the application to make requests to unexpected or private schemes and endpoints.
 **Learning:** Go's `net/http` client will execute requests for any valid scheme if not explicitly restricted. User-supplied URLs must always be validated before being used in outbound requests.
 **Prevention:** Always parse untrusted URLs using `net/url.Parse` and enforce an explicit allowlist of acceptable schemes (e.g., only `http` and `https`) before making HTTP requests.
+
+## 2024-05-18 - Prevent Unnecessary Temp File Creation for In-Memory Data
+**Vulnerability:** Writing fully buffered in-memory data to temporary disk files solely to pass them to file-based parsing functions unnecessarily increases the attack surface, creates disk exhaustion risks, and violates the principle of least privilege.
+**Learning:** Functions that parse data (like metadata from a plugin) often only require an `io.Reader` interface rather than a concrete file path.
+**Prevention:** Refactor parsing functions to accept an `io.Reader` (or `[]byte` directly) instead of a file path, allowing them to process in-memory buffers (e.g., using `bytes.NewReader`) without touching the filesystem.
