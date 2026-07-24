@@ -533,10 +533,10 @@ func getGitDiffStats(projectDir string) (int, int) {
 	cacheKey := "diffstats:" + projectDir
 	if cached, ok := statusCache.Get(cacheKey); ok {
 		var added, removed int
-		parts := strings.SplitN(cached, ",", 2)
-		if len(parts) == 2 {
-			added, _ = strconv.Atoi(parts[0])
-			removed, _ = strconv.Atoi(parts[1])
+		// Optimize by using strings.IndexByte instead of strings.SplitN to avoid slice allocation
+		if idx := strings.IndexByte(cached, ','); idx != -1 {
+			added, _ = strconv.Atoi(cached[:idx])
+			removed, _ = strconv.Atoi(cached[idx+1:])
 		}
 		return added, removed
 	}
@@ -564,8 +564,8 @@ func getGitDiffStats(projectDir string) (int, int) {
 		}
 	}
 
-	// Cache the result
-	statusCache.Set(cacheKey, fmt.Sprintf("%d,%d", added, removed), cache.GitTTL)
+	// Cache the result (using string concatenation to avoid fmt.Sprintf overhead)
+	statusCache.Set(cacheKey, strconv.FormatInt(int64(added), 10)+","+strconv.FormatInt(int64(removed), 10), cache.GitTTL)
 	return added, removed
 }
 
