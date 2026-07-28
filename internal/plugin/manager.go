@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -826,6 +827,21 @@ func (m *Manager) Remove(name string) error {
 	return nil
 }
 
+// parseLenientInt extracts leading digits from a string and converts them to an integer, stopping at the first non-digit.
+// This is significantly faster than using fmt.Sscanf("%d").
+func parseLenientInt(s string) int {
+	end := 0
+	for end < len(s) && s[end] >= '0' && s[end] <= '9' {
+		end++
+	}
+	if end == 0 {
+		return 0
+	}
+	// We know it only contains digits, so Atoi won't fail here.
+	n, _ := strconv.Atoi(s[:end])
+	return n
+}
+
 // CompareVersions compares two semver strings
 // Returns -1 if a < b, 0 if a == b, 1 if a > b
 func CompareVersions(a, b string) int {
@@ -840,10 +856,10 @@ func CompareVersions(a, b string) int {
 	for i := 0; i < maxLen; i++ {
 		var numA, numB int
 		if i < len(partsA) {
-			fmt.Sscanf(partsA[i], "%d", &numA)
+			numA = parseLenientInt(partsA[i])
 		}
 		if i < len(partsB) {
-			fmt.Sscanf(partsB[i], "%d", &numB)
+			numB = parseLenientInt(partsB[i])
 		}
 
 		if numA < numB {

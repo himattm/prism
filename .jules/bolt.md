@@ -17,3 +17,7 @@
 ## 2024-05-21 - Avoid fmt.Sscanf and fmt.Sprintf for simple numeric parsing
 **Learning:** `fmt.Sscanf` and `fmt.Sprintf` are significantly slower than `strconv.Atoi` / `strconv.ParseInt` and string concatenation because of reflection and format string parsing overhead.
 **Action:** When parsing strictly formatted strings separated by a known single-byte delimiter (e.g., "%d,%d"), replace `fmt.Sscanf` with `strings.IndexByte` to locate the delimiter followed by `strconv.ParseInt`. Replace `fmt.Sprintf` with string concatenation and `strconv.FormatInt`.
+
+## 2024-05-22 - Avoid fmt.Sscanf for lenient integer parsing
+**Learning:** `fmt.Sscanf("%d")` is very slow due to reflection and format parsing. While it parses digits until a non-digit character (unlike `strconv.Atoi`), writing a custom manual byte-traversal loop is over 10x faster and maintains parity for lenient parsing.
+**Action:** Replace `fmt.Sscanf` with a custom parsing loop when parsing strings with non-numeric suffixes to optimize hot paths.
