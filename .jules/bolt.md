@@ -21,3 +21,7 @@
 ## 2025-05-10 - fmt.Sscanf is lenient, strconv.Atoi is strict
 **Learning:** In Go, `fmt.Sscanf("%d")` parses digits until it encounters a non-digit character (e.g., `"2beta"` parses as `2`), while `strconv.Atoi` fails and returns `0` for the entire string. If you need the lenient parsing behavior of `fmt.Sscanf` for performance optimization, implement a custom byte-traversal loop to extract leading digits rather than relying on `strconv.Atoi` or regex, as it is over 10x faster and maintains exact functional parity.
 **Action:** When replacing `fmt.Sscanf` for performance, always evaluate whether the leniency of the parser is being implicitly relied upon by the surrounding code.
+
+## 2025-05-10 - Reuse http.Client to Enable Connection Pooling
+**Learning:** In Go, recreating an `http.Client` for every request is a performance anti-pattern that prevents TCP connection reuse (keep-alive) and forces new TLS handshakes, drastically increasing latency. `http.Client` is explicitly designed to be thread-safe for concurrent goroutine use.
+**Action:** Always lift `http.Client` instances to package-level variables or struct fields for reuse across multiple API calls to enable connection pooling.
