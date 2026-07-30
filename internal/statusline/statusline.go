@@ -78,9 +78,39 @@ func checkIsIdle(sessionID string) bool {
 	return true
 }
 
+// sectionLines returns the section layout to render. When the user has not
+// configured "sections", it falls back to the agent-aware default layout. In all
+// cases, Claude-only sections (cost, plan usage, peak hours) are filtered out for
+// the Pi agent — including explicitly-configured layouts, since the installer
+// writes an explicit default config and a config may be shared across agents.
+func (sl *StatusLine) sectionLines() [][]string {
+	// GetAllSectionLines already falls back to the default layout when no
+	// "sections" are configured; we then drop Claude-only sections for Pi.
+	lines := config.FilterSectionsForAgent(sl.input.Agent, sl.config.GetAllSectionLines())
+
+	// Pi renders status as a single-line footer (ctx.ui.setStatus), so collapse
+	// any multi-line layout into one line rather than emitting embedded newlines.
+	if strings.EqualFold(sl.input.Agent, "pi") {
+		lines = flattenSectionLines(lines)
+	}
+	return lines
+}
+
+// flattenSectionLines collapses a multi-line layout into a single line.
+func flattenSectionLines(lines [][]string) [][]string {
+	var flat []string
+	for _, line := range lines {
+		flat = append(flat, line...)
+	}
+	if len(flat) == 0 {
+		return nil
+	}
+	return [][]string{flat}
+}
+
 // Render generates the status line output
 func (sl *StatusLine) Render() string {
-	lines := sl.config.GetAllSectionLines()
+	lines := sl.sectionLines()
 	var output []string
 
 	for i, sections := range lines {
@@ -381,9 +411,20 @@ func formatContextWindowSize(tokens int) string {
 	return fmt.Sprintf("(%d)", tokens)
 }
 
+// autocompactBuffer returns the autocompact buffer percentage to use. The buffer
+// models Claude Code's autocompact trigger (proximity scaling + a buffer zone on
+// the bar); Pi has no such mechanism, so it defaults to 0 there unless the user
+// configured a buffer explicitly.
+func (sl *StatusLine) autocompactBuffer() float64 {
+	if sl.config.AutocompactBuffer == nil && strings.EqualFold(sl.input.Agent, "pi") {
+		return 0
+	}
+	return sl.config.GetAutocompactBuffer()
+}
+
 func (sl *StatusLine) renderContext() string {
-	// Get autocompact buffer from config (default 22.5%)
-	bufferPct := sl.config.GetAutocompactBuffer()
+	// Get autocompact buffer (default 22.5% for Claude Code, 0 for Pi)
+	bufferPct := sl.autocompactBuffer()
 
 	// Check if Claude Code provided the new percentage fields (2.1.6+)
 	// Use used_percentage directly, or calculate from remaining_percentage
@@ -417,8 +458,8 @@ func (sl *StatusLine) calculateContextPctLegacy() int {
 		windowSize = 200000 // Default
 	}
 
-	// Get autocompact buffer from config (default 22.5%)
-	bufferPct := sl.config.GetAutocompactBuffer()
+	// Get autocompact buffer (default 22.5% for Claude Code, 0 for Pi)
+	bufferPct := sl.autocompactBuffer()
 
 	// Calculate usable capacity (total - buffer)
 	usableCapacity := windowSize

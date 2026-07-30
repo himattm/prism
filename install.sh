@@ -430,6 +430,19 @@ else
     echo -e "  ${DIM}Backup saved to $BACKUP_FILE${RESET}"
 fi
 
+# Pi coding agent integration (optional)
+# Pi can't run a command for its status line, so prism installs a small embedded
+# extension into ~/.pi that shells back to this binary. Only done if Pi is present.
+if [ -d "$HOME/.pi" ]; then
+    echo ""
+    info "Detected Pi (~/.pi) — installing Prism's Pi extension..."
+    if "$CLAUDE_DIR/prism" install-pi; then
+        success "  Installed Pi extension (restart Pi to load it)"
+    else
+        echo -e "  ${DIM}Could not install Pi extension automatically; run '$CLAUDE_DIR/prism install-pi' manually.${RESET}"
+    fi
+fi
+
 echo ""
 success "Prism installed successfully!"
 echo ""

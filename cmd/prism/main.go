@@ -12,6 +12,7 @@ import (
 	"github.com/himattm/prism/internal/colors"
 	"github.com/himattm/prism/internal/config"
 	"github.com/himattm/prism/internal/hooks"
+	"github.com/himattm/prism/internal/piinstall"
 	"github.com/himattm/prism/internal/plugin"
 	"github.com/himattm/prism/internal/plugins"
 	"github.com/himattm/prism/internal/statusline"
@@ -50,6 +51,12 @@ func main() {
 	case "init-global":
 		handleInitGlobal()
 
+	case "install-pi":
+		handleInstallPi()
+
+	case "uninstall-pi":
+		handleUninstallPi()
+
 	case "hook":
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "Usage: prism hook <type>")
@@ -85,6 +92,13 @@ func runStatusLine() {
 	sl := statusline.New(input, cfg)
 	output := sl.Render()
 
+	// Honor NO_COLOR (https://no-color.org). Pi inherits the user's environment,
+	// so this also lets Pi users drop to plain text if their host doesn't render
+	// raw ANSI in the status footer.
+	if os.Getenv("NO_COLOR") != "" {
+		output = colors.StripANSI(output)
+	}
+
 	fmt.Print(output)
 }
 
@@ -94,6 +108,8 @@ func printHelp() {
 Usage:
   prism init                  Create .claude/prism.json in current directory
   prism init-global           Create ~/.claude/prism-config.json
+  prism install-pi            Install the Pi coding agent integration
+  prism uninstall-pi          Remove the Pi coding agent integration
   prism update                Check for Prism updates and install
   prism check-update          Check for Prism updates (no install)
   prism version               Show version
@@ -282,6 +298,25 @@ func handleCheckUpdate() {
 	} else {
 		fmt.Println("\nYou're on the latest version.")
 	}
+}
+
+func handleInstallPi() {
+	dir, err := piinstall.Install()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error installing Pi extension: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Installed Prism's Pi extension to %s\n", dir)
+	fmt.Println("Restart Pi (or start a new session) to load it.")
+}
+
+func handleUninstallPi() {
+	dir, err := piinstall.Uninstall()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error removing Pi extension: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Removed Prism's Pi extension from %s\n", dir)
 }
 
 func handleInit() {

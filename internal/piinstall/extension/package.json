@@ -1,0 +1,10 @@
+{
+  "name": "prism-pi-extension",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prism status line integration for the Pi coding agent",
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

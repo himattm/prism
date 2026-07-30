@@ -11,6 +11,7 @@ import (
 
 	"github.com/himattm/prism/internal/burnrate"
 	"github.com/himattm/prism/internal/config"
+	"github.com/himattm/prism/internal/piinstall"
 	"github.com/himattm/prism/internal/plugins"
 )
 
@@ -86,6 +87,10 @@ func (m *Manager) logHook(hookType string, input Input, rawInput []byte) {
 // HandleIdle processes the idle hook (called when Claude stops responding)
 func (m *Manager) HandleIdle(input Input, rawInput []byte) error {
 	m.logHook("idle", input, rawInput)
+
+	// If the Pi extension is installed, keep its shim in sync with the binary
+	// after an auto-update. Best-effort; never block the idle hook on it.
+	piinstall.RefreshIfStale()
 
 	// 1. Create idle marker file
 	if input.SessionID != "" {

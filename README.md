@@ -14,6 +14,7 @@ A fast, customizable, and colorful status line for Claude Code.
 - **Mobile dev ready** - Android device info with app version lookup
 - **Auto-updates** - Automatically installs updates when Claude is idle
 - **Extensible** - Write custom plugins in any language
+- **Multi-agent** - Works in [Claude Code](https://claude.com/claude-code) and the [Pi coding agent](https://pi.dev/)
 
 ## Installation
 
@@ -22,6 +23,17 @@ curl -fsSL https://raw.githubusercontent.com/himattm/prism/main/install.sh | bas
 ```
 
 Restart Claude Code or start a new session.
+
+### Pi coding agent
+
+Prism also runs in [Pi](https://pi.dev/) from the same binary and config. If Pi
+(`~/.pi`) is present the installer sets it up automatically; otherwise run:
+
+```bash
+~/.claude/prism install-pi   # restart Pi to load it
+```
+
+See [docs/integrations/pi.md](docs/integrations/pi.md) for how it works.
 
 ## Auto-Update
 

@@ -1536,3 +1536,23 @@ func TestCalculateContextPctLegacy_1MWindow(t *testing.T) {
 		t.Errorf("expected 12%% with 1M window, got: %d%%", pct)
 	}
 }
+
+func TestFlattenSectionLines(t *testing.T) {
+	got := flattenSectionLines([][]string{{"dir", "model"}, {"context"}, {"git"}})
+	if len(got) != 1 {
+		t.Fatalf("expected a single line, got %d: %v", len(got), got)
+	}
+	want := []string{"dir", "model", "context", "git"}
+	if len(got[0]) != len(want) {
+		t.Fatalf("flattened sections = %v, want %v", got[0], want)
+	}
+	for i, s := range want {
+		if got[0][i] != s {
+			t.Fatalf("flattened sections = %v, want %v", got[0], want)
+		}
+	}
+
+	if flattenSectionLines(nil) != nil {
+		t.Error("flattening empty layout should return nil")
+	}
+}

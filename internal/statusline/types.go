@@ -1,8 +1,9 @@
 package statusline
 
-// Input is the JSON structure received from Claude Code
+// Input is the JSON structure received from the host agent (Claude Code or Pi).
 type Input struct {
 	SessionID string        `json:"session_id"`
+	Agent     string        `json:"agent"` // Source agent: "" / "claude-code" (default) or "pi"
 	Model     ModelInfo     `json:"model"`
 	Workspace WorkspaceInfo `json:"workspace"`
 	Cost      CostInfo      `json:"cost"`
