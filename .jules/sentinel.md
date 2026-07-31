@@ -16,3 +16,8 @@
 **Vulnerability:** Writing fully buffered in-memory data to temporary disk files solely for parsing.
 **Learning:** This increases attack surface, risks disk exhaustion, and violates the principle of least privilege.
 **Prevention:** Refactor parsing functions to accept byte slices or `io.Reader` directly to process data in memory.
+
+## 2024-05-30 - Prevent DoS via Missing HTTP Request Timeouts
+**Vulnerability:** The application used `http.Get()` for fetching external plugins, which relies on `http.DefaultClient`. This default client has no timeout configured, allowing malicious or unresponsive servers to hang the connection indefinitely, potentially leading to Denial of Service (DoS) through resource exhaustion (e.g., file descriptors, goroutines).
+**Learning:** In Go, `http.DefaultClient` should never be used for external or untrusted requests because it lacks timeouts by default.
+**Prevention:** Always use a custom `http.Client` with an explicit `Timeout` configured (e.g., `Timeout: 10 * time.Second`) when making HTTP requests to external or untrusted endpoints to ensure connections are eventually closed.
