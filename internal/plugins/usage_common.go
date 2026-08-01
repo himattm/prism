@@ -37,6 +37,8 @@ const (
 	usageDiskCacheTTL = 5 * time.Minute
 )
 
+var usageClient = &http.Client{Timeout: usageAPITimeout}
+
 // UsageResponse represents the API response from the usage endpoint
 type UsageResponse struct {
 	FiveHour     *UsageLimit `json:"five_hour"`
@@ -181,8 +183,7 @@ func FetchUsage(ctx context.Context, token string) (*UsageResponse, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-beta", "oauth-2025-04-20")
 
-	client := &http.Client{Timeout: usageAPITimeout}
-	resp, err := client.Do(req)
+	resp, err := usageClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch usage: %w", err)
 	}
