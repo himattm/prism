@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
@@ -468,7 +470,27 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DisableKeepAlives = true
+	transport.DialContext = (&net.Dialer{
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, _ := net.SplitHostPort(address)
+			if idx := strings.IndexByte(host, '%'); idx != -1 {
+				host = host[:idx]
+			}
+			if ip := net.ParseIP(host); ip != nil && ip.String() == "169.254.169.254" {
+				return fmt.Errorf("SSRF blocked")
+			}
+			return nil
+		},
+	}).DialContext
+
+	secureClient := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
+	}
+
+	resp, err := secureClient.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
