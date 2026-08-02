@@ -16,3 +16,7 @@
 **Vulnerability:** Writing fully buffered in-memory data to temporary disk files solely for parsing.
 **Learning:** This increases attack surface, risks disk exhaustion, and violates the principle of least privilege.
 **Prevention:** Refactor parsing functions to accept byte slices or `io.Reader` directly to process data in memory.
+## 2024-11-20 - SSRF Prevention with net.Dialer
+**Vulnerability:** Untrusted user-provided URLs could access cloud metadata endpoints via Server-Side Request Forgery (SSRF) because `http.Get()` was used without preventing IP resolution to known restricted IPs.
+**Learning:** Using a custom `net.Dialer` with a `Control` hook prevents SSRF by evaluating the resolved IP address *after* DNS resolution but *before* the socket connects. This stops DNS rebinding and IP obfuscation attacks.
+**Prevention:** Block specific cloud metadata IPs like `169.254.169.254` in the `Control` hook. Ensure IPv6 Zone Identifiers are stripped before parsing.
