@@ -16,3 +16,8 @@
 **Vulnerability:** Writing fully buffered in-memory data to temporary disk files solely for parsing.
 **Learning:** This increases attack surface, risks disk exhaustion, and violates the principle of least privilege.
 **Prevention:** Refactor parsing functions to accept byte slices or `io.Reader` directly to process data in memory.
+
+## 2024-08-03 - Prevent SSRF with net.Dialer Control Hook
+**Vulnerability:** Relying on `net/url.Parse` to validate URL schemes doesn't fully protect against SSRF (e.g. against cloud metadata services) and custom transports can break 'Happy Eyeballs'.
+**Learning:** Using a `net.Dialer` with a `Control` hook allows inspecting the resolved IP *before* the socket connects, providing a robust way to block targeted IPs (like `169.254.169.254`) without breaking legitimate local use cases.
+**Prevention:** Clone `http.DefaultTransport` and configure its `DialContext` to use a dialer with a Control hook that validates the resolved IP. Block specific cloud metadata endpoints instead of all private IPs.
