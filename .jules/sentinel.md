@@ -16,3 +16,7 @@
 **Vulnerability:** Writing fully buffered in-memory data to temporary disk files solely for parsing.
 **Learning:** This increases attack surface, risks disk exhaustion, and violates the principle of least privilege.
 **Prevention:** Refactor parsing functions to accept byte slices or `io.Reader` directly to process data in memory.
+## 2024-08-04 - Fix DoS risk by adding timeouts to HTTP requests
+**Vulnerability:** External HTTP requests were made using `http.Get()`, which relies on `http.DefaultClient` and lacks request timeouts, leading to potential DoS or resource exhaustion.
+**Learning:** `http.Get()` has no timeout. A malicious or unoptimized external server could hang connections infinitely, causing goroutine or connection leaks.
+**Prevention:** Always replace `http.Get()` with a custom `http.Client` that is configured with appropriate timeouts (e.g., `Timeout: 10 * time.Second`).
