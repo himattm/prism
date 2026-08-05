@@ -832,23 +832,20 @@ func parseLenientAtoi(s string) int {
 // CompareVersions compares two semver strings
 // Returns -1 if a < b, 0 if a == b, 1 if a > b
 func CompareVersions(a, b string) int {
-	partsA := strings.Split(a, ".")
-	partsB := strings.Split(b, ".")
+	// Bolt optimization: using strings.Cut avoids intermediate slice allocations
+	for a != "" || b != "" {
+		var partA, partB string
 
-	maxLen := len(partsA)
-	if len(partsB) > maxLen {
-		maxLen = len(partsB)
-	}
+		if a != "" {
+			partA, a, _ = strings.Cut(a, ".")
+		}
+		if b != "" {
+			partB, b, _ = strings.Cut(b, ".")
+		}
 
-	for i := 0; i < maxLen; i++ {
-		var numA, numB int
-		if i < len(partsA) {
-			// Bolt optimization: using a custom loop is ~14x faster than fmt.Sscanf
-			numA = parseLenientAtoi(partsA[i])
-		}
-		if i < len(partsB) {
-			numB = parseLenientAtoi(partsB[i])
-		}
+		// Bolt optimization: using a custom loop is ~14x faster than fmt.Sscanf
+		numA := parseLenientAtoi(partA)
+		numB := parseLenientAtoi(partB)
 
 		if numA < numB {
 			return -1
