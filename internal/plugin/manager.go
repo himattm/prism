@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
@@ -27,6 +29,36 @@ var versionRegex = regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
 // sanitizeFilename ensures a filename cannot be used for path traversal
 func sanitizeFilename(name string) string {
 	return filepath.Base(filepath.Clean("/" + name))
+}
+
+// secureHTTPClient returns an http.Client configured to mitigate SSRF and leaks
+func secureHTTPClient() *http.Client {
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			if idx := strings.IndexByte(host, '%'); idx != -1 {
+				host = host[:idx]
+			}
+			ip := net.ParseIP(host)
+			if ip != nil && ip.String() == "169.254.169.254" {
+				return fmt.Errorf("SSRF prevention: access to cloud metadata IP blocked")
+			}
+			return nil
+		},
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = dialer.DialContext
+	transport.DisableKeepAlives = true
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second,
+	}
 }
 
 // Manager handles plugin discovery, execution, and management
@@ -410,7 +442,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	client := secureHTTPClient()
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -468,7 +501,8 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	client := secureHTTPClient()
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
