@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
@@ -23,6 +25,32 @@ import (
 
 var metadataRegex = regexp.MustCompile(`^#\s*@(\w+[-\w]*)\s+(.+)$`)
 var versionRegex = regexp.MustCompile(`(?m)^#\s*@version\s+(.+)$`)
+
+func safeHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DisableKeepAlives = true
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			ip := net.ParseIP(strings.Split(host, "%")[0])
+			if ip != nil && ip.String() == "169.254.169.254" {
+				return fmt.Errorf("SSRF restricted IP: %s", ip.String())
+			}
+			return nil
+		},
+	}
+	transport.DialContext = dialer.DialContext
+
+	return &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
+	}
+}
 
 // sanitizeFilename ensures a filename cannot be used for path traversal
 func sanitizeFilename(name string) string {
@@ -410,7 +438,8 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	client := safeHTTPClient()
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -468,7 +497,8 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	client := safeHTTPClient()
+	resp, err := client.Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
