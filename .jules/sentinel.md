@@ -16,3 +16,7 @@
 **Vulnerability:** Writing fully buffered in-memory data to temporary disk files solely for parsing.
 **Learning:** This increases attack surface, risks disk exhaustion, and violates the principle of least privilege.
 **Prevention:** Refactor parsing functions to accept byte slices or `io.Reader` directly to process data in memory.
+## 2024-05-24 - SSRF vulnerability in plugin downloads
+**Vulnerability:** The application used `http.Get` directly for downloading plugins from potentially user-controlled URLs without IP validation, exposing it to Server-Side Request Forgery (SSRF) attacks, specifically against cloud metadata endpoints like `169.254.169.254`.
+**Learning:** `http.Get` does not protect against SSRF. Merely parsing URLs is insufficient since DNS rebinding can still target internal IPs.
+**Prevention:** Use a custom `http.Client` with a `net.Dialer` and a `Control` hook to intercept socket connections *after* DNS resolution but *before* connecting, blocking prohibited IPs (e.g., `169.254.169.254`). Also, ensure proper timeouts are configured.
