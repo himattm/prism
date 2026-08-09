@@ -157,22 +157,20 @@ func fetchLatestVersion(ctx context.Context) (string, error) {
 }
 
 func compareVersions(a, b string) int {
-	partsA := strings.Split(a, ".")
-	partsB := strings.Split(b, ".")
+	// Bolt optimization: using a for loop with strings.Cut avoids intermediate
+	// slice allocations entirely compared to strings.Split, improving performance.
+	for len(a) > 0 || len(b) > 0 {
+		var partA, partB string
 
-	maxLen := len(partsA)
-	if len(partsB) > maxLen {
-		maxLen = len(partsB)
-	}
+		if len(a) > 0 {
+			partA, a, _ = strings.Cut(a, ".")
+		}
+		if len(b) > 0 {
+			partB, b, _ = strings.Cut(b, ".")
+		}
 
-	for i := 0; i < maxLen; i++ {
-		var numA, numB int
-		if i < len(partsA) {
-			numA, _ = strconv.Atoi(partsA[i])
-		}
-		if i < len(partsB) {
-			numB, _ = strconv.Atoi(partsB[i])
-		}
+		numA, _ := strconv.Atoi(partA)
+		numB, _ := strconv.Atoi(partB)
 
 		if numA < numB {
 			return -1
