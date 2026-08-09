@@ -16,3 +16,7 @@
 **Vulnerability:** Writing fully buffered in-memory data to temporary disk files solely for parsing.
 **Learning:** This increases attack surface, risks disk exhaustion, and violates the principle of least privilege.
 **Prevention:** Refactor parsing functions to accept byte slices or `io.Reader` directly to process data in memory.
+## 2024-05-30 - Prevent SSRF with Dialer Control Hook
+**Vulnerability:** Relying on `net/url.Parse` for SSRF protection leaves the application vulnerable to DNS rebinding or IP obfuscation, and `http.Get` lacks timeouts.
+**Learning:** A `net.Dialer` with a `Control` hook evaluates the actual IP address *after* DNS resolution but *before* the socket connects, effectively mitigating SSRF against cloud metadata like `169.254.169.254`.
+**Prevention:** Use a custom `http.Client` with a `net.Dialer` `Control` hook to inspect resolved IPs, and always set timeouts to prevent resource exhaustion.
