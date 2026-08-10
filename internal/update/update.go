@@ -157,21 +157,22 @@ func fetchLatestVersion(ctx context.Context) (string, error) {
 }
 
 func compareVersions(a, b string) int {
-	partsA := strings.Split(a, ".")
-	partsB := strings.Split(b, ".")
+	for a != "" || b != "" {
+		var partA, partB string
 
-	maxLen := len(partsA)
-	if len(partsB) > maxLen {
-		maxLen = len(partsB)
-	}
-
-	for i := 0; i < maxLen; i++ {
-		var numA, numB int
-		if i < len(partsA) {
-			numA, _ = strconv.Atoi(partsA[i])
+		if a != "" {
+			partA, a, _ = strings.Cut(a, ".")
 		}
-		if i < len(partsB) {
-			numB, _ = strconv.Atoi(partsB[i])
+		if b != "" {
+			partB, b, _ = strings.Cut(b, ".")
+		}
+
+		var numA, numB int
+		if partA != "" {
+			numA, _ = strconv.Atoi(partA)
+		}
+		if partB != "" {
+			numB, _ = strconv.Atoi(partB)
 		}
 
 		if numA < numB {
