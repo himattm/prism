@@ -16,3 +16,8 @@
 **Vulnerability:** Writing fully buffered in-memory data to temporary disk files solely for parsing.
 **Learning:** This increases attack surface, risks disk exhaustion, and violates the principle of least privilege.
 **Prevention:** Refactor parsing functions to accept byte slices or `io.Reader` directly to process data in memory.
+
+## 2024-05-18 - Prevent SSRF via Cloud Metadata Endpoints
+**Vulnerability:** Even when URL schemes are restricted, direct HTTP requests to untrusted URLs can resolve to sensitive internal or cloud metadata IP addresses (e.g., `169.254.169.254`), leading to SSRF.
+**Learning:** Basic URL validation is insufficient. DNS rebinding or IP obfuscation can bypass it.
+**Prevention:** Use a custom `net.Dialer` with a `Control` hook to evaluate the fully resolved IP address immediately before connection, explicitly blocking known sensitive IP ranges.
