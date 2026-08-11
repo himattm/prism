@@ -21,3 +21,6 @@
 ## 2025-05-10 - fmt.Sscanf is lenient, strconv.Atoi is strict
 **Learning:** In Go, `fmt.Sscanf("%d")` parses digits until it encounters a non-digit character (e.g., `"2beta"` parses as `2`), while `strconv.Atoi` fails and returns `0` for the entire string. If you need the lenient parsing behavior of `fmt.Sscanf` for performance optimization, implement a custom byte-traversal loop to extract leading digits rather than relying on `strconv.Atoi` or regex, as it is over 10x faster and maintains exact functional parity.
 **Action:** When replacing `fmt.Sscanf` for performance, always evaluate whether the leniency of the parser is being implicitly relied upon by the surrounding code.
+## 2024-07-25 - Use strings.Cut instead of strings.Split for tight loops
+**Learning:** In Go, using `strings.Split` in tight parsing loops (like version string comparisons) causes unnecessary slice allocations and degrades performance.
+**Action:** To avoid this overhead and improve speed, use a `for` loop with `strings.Cut` to incrementally consume and parse the delimited string without allocating intermediate slices.
