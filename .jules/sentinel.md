@@ -16,3 +16,8 @@
 **Vulnerability:** Writing fully buffered in-memory data to temporary disk files solely for parsing.
 **Learning:** This increases attack surface, risks disk exhaustion, and violates the principle of least privilege.
 **Prevention:** Refactor parsing functions to accept byte slices or `io.Reader` directly to process data in memory.
+
+## 2024-05-27 - Prevent SSRF via IP Validation in Dialer Hook
+**Vulnerability:** Untrusted user-provided URLs could result in SSRF, allowing access to internal cloud metadata IP `169.254.169.254`.
+**Learning:** Validating IPs after DNS resolution but before the connection (using `net.Dialer` with a `Control` hook) effectively blocks SSRF attacks, including DNS rebinding and IP obfuscation.
+**Prevention:** Use a custom `net.Dialer` with a `Control` hook to validate destination IPs against known sensitive addresses (like `169.254.169.254`) before the connection is established. Set `DisableKeepAlives = true` when creating custom transports for one-off requests to prevent connection leaks.

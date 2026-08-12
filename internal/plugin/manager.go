@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/himattm/prism/internal/fsutil"
@@ -312,7 +314,7 @@ func (m *Manager) addBinaryPlugin(owner, repo, pluginName string) error {
 
 	// Try to fetch release info
 	releaseURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := newSafeClient(10 * time.Second)
 
 	req, err := http.NewRequest("GET", releaseURL, nil)
 	if err != nil {
@@ -410,7 +412,7 @@ func (m *Manager) addScriptPlugin(owner, repo, pluginName string) error {
 
 	fmt.Printf("Fetching script from: %s\n", rawURL)
 
-	resp, err := http.Get(rawURL)
+	resp, err := newSafeClient(10 * time.Second).Get(rawURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -468,7 +470,7 @@ func (m *Manager) addFromDirectURL(rawURL string) error {
 		return fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
 
-	resp, err := http.Get(parsedURL.String())
+	resp, err := newSafeClient(10 * time.Second).Get(parsedURL.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch plugin: %w", err)
 	}
@@ -552,7 +554,7 @@ func (m *Manager) CheckUpdates() {
 	fmt.Println()
 
 	updatesAvailable := false
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := newSafeClient(5 * time.Second)
 
 	for _, p := range plugins {
 		if p.Metadata.UpdateURL == "" {
@@ -668,7 +670,7 @@ func (m *Manager) updatePlugin(p Plugin) error {
 
 	fmt.Printf("  %s: checking...\n", p.Name)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := newSafeClient(10 * time.Second)
 
 	if p.IsBinary {
 		return m.updateBinaryPlugin(p, client)
@@ -859,4 +861,31 @@ func CompareVersions(a, b string) int {
 	}
 
 	return 0
+}
+
+func newSafeClient(timeout time.Duration) *http.Client {
+	dialer := &net.Dialer{
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			if idx := strings.IndexByte(host, '%'); idx != -1 {
+				host = host[:idx]
+			}
+			ip := net.ParseIP(host)
+			if ip != nil && ip.Equal(net.ParseIP("169.254.169.254")) {
+				return fmt.Errorf("access to cloud metadata IP is prohibited")
+			}
+			return nil
+		},
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = dialer.DialContext
+	transport.DisableKeepAlives = true
+
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}
 }
